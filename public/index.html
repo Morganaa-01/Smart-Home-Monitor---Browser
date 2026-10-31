@@ -77,7 +77,10 @@
       </div>
       <form class="weather-form" id="weatherForm">
         <label class="weather-location-field" for="weatherLocationInput">Település
-          <input type="text" id="weatherLocationInput" maxlength="80" placeholder="Például: Budapest vagy Szolnok" autocomplete="address-level2">
+          <span class="weather-autocomplete">
+            <input type="text" id="weatherLocationInput" maxlength="80" placeholder="Például: Budapest vagy Szolnok" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="weatherLocationSuggestions">
+            <span class="weather-suggestions" id="weatherLocationSuggestions" role="listbox" hidden></span>
+          </span>
         </label>
         <button class="button primary" type="submit" id="weatherSearchBtn">Időjárás lekérése</button>
         <button class="button secondary" type="button" id="useMyLocationBtn"><span class="material-symbols-rounded" aria-hidden="true">my_location</span> Saját helyzetem</button>
