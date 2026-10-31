@@ -1,0 +1,160 @@
+/*
+ * Button and line-chart styling adapted from these Flet Studio examples:
+ * Buttons: https://studio.flet.dev/gallery/buttons
+ * Line charts: https://studio.flet.dev/gallery/charts
+ * Custom-axis line chart sample: https://studio.flet.dev/gallery/charts/linechart
+ * This CSS recreates the useful control appearance in the existing HTML app.
+ */
+:root {
+  --flet-button-fill: #a8caff;
+  --flet-button-text: #17324f;
+  --flet-chart-bg: #111418;
+  --flet-chart-border: #363d45;
+  --flet-chart-grid: rgba(181, 194, 207, 0.2);
+  --flet-chart-line: #00bfd2;
+  --flet-chart-label: #c2c9d2;
+  --flet-chart-value: #a8caff;
+}
+
+/* Flet FilledButton and OutlinedButton examples */
+.button,
+button {
+  min-height: 44px;
+  border-radius: 999px;
+  transition: background-color 160ms ease, border-color 160ms ease,
+    color 160ms ease, transform 160ms ease;
+}
+
+.button.primary,
+#sendChatBtn,
+button:not(.button.secondary):not(.theme-toggle):not(.menu-toggle) {
+  border: 1px solid var(--flet-button-fill);
+  background: var(--flet-button-fill);
+  color: var(--flet-button-text);
+  box-shadow: none;
+}
+
+.button.primary:hover,
+#sendChatBtn:hover,
+button:not(.button.secondary):not(.theme-toggle):not(.menu-toggle):hover {
+  border-color: #c5dcff;
+  background: #c5dcff;
+  color: #142b43;
+  transform: translateY(-1px);
+}
+
+.button.secondary {
+  border: 1px solid #8fbaff;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-color);
+}
+
+.button.secondary:hover {
+  border-color: var(--flet-button-fill);
+  background: rgba(168, 202, 255, 0.12);
+  color: var(--text-color);
+}
+
+.theme-toggle.theme-toggle-icon,
+.menu-toggle {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid #8fbaff;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-color);
+  box-shadow: none;
+}
+
+.theme-toggle.theme-toggle-icon:hover,
+.menu-toggle:hover {
+  border-color: var(--flet-button-fill);
+  background: rgba(168, 202, 255, 0.14);
+  color: var(--text-color);
+}
+
+button:disabled {
+  border-color: #393c42;
+  background: #393c42;
+  color: #858b94;
+  box-shadow: none;
+  transform: none;
+  cursor: wait;
+}
+
+/* Flet Charts LineChart examples: dark plot, custom axes, grid, cyan curved series */
+.thingspeak-chart,
+body.dark .thingspeak-chart {
+  min-height: 270px;
+  height: 270px;
+  overflow: hidden;
+  border: 1px solid var(--flet-chart-border);
+  border-radius: 12px;
+  background: var(--flet-chart-bg);
+  box-shadow: none;
+}
+
+.thingspeak-chart svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.thingspeak-chart .chart-title {
+  fill: var(--flet-chart-label);
+  font: 600 16px system-ui, sans-serif;
+}
+
+.thingspeak-chart .chart-value {
+  fill: var(--flet-chart-value);
+  font: 700 16px system-ui, sans-serif;
+}
+
+.thingspeak-chart .chart-axis-label {
+  fill: var(--flet-chart-label);
+  font: 500 12px system-ui, sans-serif;
+  opacity: 0.82;
+}
+
+.thingspeak-chart .chart-grid-line {
+  stroke: var(--flet-chart-grid);
+  stroke-width: 1;
+}
+
+.thingspeak-chart .chart-frame {
+  fill: none;
+  stroke: var(--flet-chart-border);
+  stroke-width: 1;
+}
+
+.thingspeak-chart .chart-line {
+  fill: none;
+  stroke: var(--flet-chart-line);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (max-width: 900px) {
+  .thingspeak-chart,
+  body.dark .thingspeak-chart {
+    height: 270px;
+  }
+}
+
+@media (max-width: 580px) {
+  .button.primary,
+  .button.secondary,
+  #sendChatBtn {
+    min-height: 46px;
+  }
+
+  .thingspeak-chart,
+  body.dark .thingspeak-chart {
+    height: 250px;
+    min-height: 250px;
+  }
+}
