@@ -318,19 +318,122 @@ async function searchWeatherByCity(event) {
   const button = $("weatherSearchBtn");
   button.disabled = true;
   try {
-    setWeatherStatus("Település keresése…");
-    const params = new URLSearchParams({ name: query, count: "5", language: "hu", format: "json" });
-    const response = await fetch("https://geocoding-api.open-meteo.com/v1/search?" + params.toString(), { cache: "no-store" });
-    if (!response.ok) throw new Error("A településkereső nem érhető el.");
-    const data = await response.json();
-    const place = data.results?.[0];
+    const place = weatherSelectedPlace && weatherSelectedQuery === query
+      ? weatherSelectedPlace
+      : (await findWeatherPlaces(query))[0];
     if (!place) throw new Error("Nem találtam ilyen települést. Próbáld meg ország megadásával, például: Szolnok, Magyarország.");
-    const placeName = [place.name, place.admin1, place.country].filter((value, index, values) => value && values.indexOf(value) === index).join(", ");
-    await loadCurrentWeather(place.latitude, place.longitude, placeName);
+    await loadCurrentWeather(place.latitude, place.longitude, formatWeatherPlace(place));
   } catch (error) {
     setWeatherStatus(error.message || "Nem sikerült betölteni az időjárást.", true);
   } finally {
     button.disabled = false;
+  }
+}
+
+let weatherSuggestionTimer;
+let weatherSuggestionRequest = 0;
+let weatherSelectedPlace = null;
+let weatherSelectedQuery = "";
+let weatherActiveSuggestion = -1;
+
+function formatWeatherPlace(place) {
+  return [place.name, place.admin1, place.country]
+    .filter((value, index, values) => value && values.indexOf(value) === index)
+    .join(", ");
+}
+
+async function findWeatherPlaces(query) {
+  const params = new URLSearchParams({ name: query, count: "5", language: "hu", format: "json" });
+  const response = await fetch("https://geocoding-api.open-meteo.com/v1/search?" + params.toString(), { cache: "no-store" });
+  if (!response.ok) throw new Error("A településkereső nem érhető el.");
+  const data = await response.json();
+  return data.results || [];
+}
+
+function closeWeatherSuggestions() {
+  const input = $("weatherLocationInput");
+  const list = $("weatherLocationSuggestions");
+  list.hidden = true;
+  list.replaceChildren();
+  input.setAttribute("aria-expanded", "false");
+  input.removeAttribute("aria-activedescendant");
+  weatherActiveSuggestion = -1;
+}
+
+function selectWeatherSuggestion(place) {
+  const input = $("weatherLocationInput");
+  input.value = formatWeatherPlace(place);
+  weatherSelectedPlace = place;
+  weatherSelectedQuery = input.value;
+  closeWeatherSuggestions();
+  $("weatherForm").requestSubmit();
+}
+
+async function loadWeatherSuggestions(query) {
+  const requestId = ++weatherSuggestionRequest;
+  try {
+    const places = await findWeatherPlaces(query);
+    if (requestId !== weatherSuggestionRequest || $("weatherLocationInput").value.trim() !== query) return;
+    const list = $("weatherLocationSuggestions");
+    list.replaceChildren();
+    places.forEach((place, index) => {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "weather-suggestion";
+      option.id = `weather-location-option-${index}`;
+      option.setAttribute("role", "option");
+      option.setAttribute("aria-selected", "false");
+      option.textContent = formatWeatherPlace(place);
+      option.addEventListener("click", () => selectWeatherSuggestion(place));
+      list.append(option);
+    });
+    list.hidden = places.length === 0;
+    $("weatherLocationInput").setAttribute("aria-expanded", String(places.length > 0));
+  } catch {
+    if (requestId === weatherSuggestionRequest) closeWeatherSuggestions();
+  }
+}
+
+function moveWeatherSuggestionSelection(direction) {
+  const input = $("weatherLocationInput");
+  const options = [...$("weatherLocationSuggestions").querySelectorAll('[role="option"]')];
+  if (!options.length) return;
+  weatherActiveSuggestion = weatherActiveSuggestion < 0
+    ? (direction > 0 ? 0 : options.length - 1)
+    : (weatherActiveSuggestion + direction + options.length) % options.length;
+  options.forEach((option, index) => {
+    const selected = index === weatherActiveSuggestion;
+    option.setAttribute("aria-selected", String(selected));
+  });
+  input.setAttribute("aria-activedescendant", options[weatherActiveSuggestion].id);
+}
+
+function handleWeatherLocationInput(event) {
+  const query = event.currentTarget.value.trim();
+  weatherSelectedPlace = null;
+  weatherSelectedQuery = "";
+  clearTimeout(weatherSuggestionTimer);
+  weatherSuggestionRequest += 1;
+  closeWeatherSuggestions();
+  if (query.length < 2) return;
+  weatherSuggestionTimer = setTimeout(() => loadWeatherSuggestions(query), 300);
+}
+
+function handleWeatherLocationKeydown(event) {
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    moveWeatherSuggestionSelection(1);
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    moveWeatherSuggestionSelection(-1);
+  } else if (event.key === "Enter" && weatherActiveSuggestion >= 0) {
+    const option = $("weatherLocationSuggestions").querySelectorAll('[role="option"]')[weatherActiveSuggestion];
+    if (option) {
+      event.preventDefault();
+      option.click();
+    }
+  } else if (event.key === "Escape") {
+    closeWeatherSuggestions();
   }
 }
 
@@ -367,6 +470,9 @@ function useCurrentLocation() {
 
 function setupWeather() {
   $("weatherForm").addEventListener("submit", searchWeatherByCity);
+  $("weatherLocationInput").addEventListener("input", handleWeatherLocationInput);
+  $("weatherLocationInput").addEventListener("keydown", handleWeatherLocationKeydown);
+  $("weatherLocationInput").addEventListener("blur", () => setTimeout(closeWeatherSuggestions, 150));
   $("useMyLocationBtn").addEventListener("click", useCurrentLocation);
 }
 
