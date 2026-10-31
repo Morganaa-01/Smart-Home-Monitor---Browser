@@ -42,6 +42,18 @@ body.dark {
   --accent-color: #9ee5a0;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -97,6 +109,24 @@ a {
 
 .logo-icon {
   font-size: 1.4rem;
+}
+
+.material-symbols-rounded {
+  font-family: "Material Symbols Rounded";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "liga";
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
 }
 
 .nav-links {
@@ -457,6 +487,237 @@ button:hover {
   color: var(--muted-color);
 }
 
+/* ===== Greenhouse dashboard ===== */
+.greenhouse-hero {
+  padding-top: 2rem;
+  padding-bottom: 3.5rem;
+}
+
+.greenhouse-hero .eyebrow,
+.dashboard-heading .eyebrow,
+.system-card .eyebrow,
+.chat-card .eyebrow,
+#thingspeak .eyebrow {
+  color: var(--primary-color);
+}
+
+.greenhouse-hero h1 {
+  max-width: 760px;
+  color: var(--text-color);
+}
+
+.hero-copy {
+  max-width: 680px;
+}
+
+.card-heading-row,
+.section-heading,
+.dashboard-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.card-heading-row h2,
+.section-heading h2 {
+  margin: 0;
+}
+
+.card-heading-row .eyebrow,
+.section-heading .eyebrow {
+  margin-bottom: 0.3rem;
+}
+
+.connection-pill,
+.mode-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(99, 112, 103, 0.12);
+  color: var(--muted-color);
+  font-size: 0.8rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.connection-pill.connected {
+  color: var(--primary-dark);
+  background: rgba(47, 125, 50, 0.13);
+}
+
+.connection-pill.disconnected {
+  color: var(--danger-color);
+  background: rgba(180, 35, 24, 0.12);
+}
+
+.connection-pill.stale {
+  color: var(--warning-color);
+  background: color-mix(in srgb, var(--warning-color) 14%, var(--surface));
+}
+
+.page-content {
+  padding-bottom: 1rem;
+}
+
+.section-intro {
+  margin: 0 0 1.1rem;
+}
+
+.greenhouse-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 1.5rem;
+}
+
+.greenhouse-grid .sensor-card {
+  min-height: 200px;
+  padding: 1.3rem;
+  border-top: 3px solid var(--primary-color);
+}
+
+.metric-icon,
+.device-symbol {
+  font-size: 1.5rem;
+}
+
+.metric-label {
+  margin: 0.7rem 0 0;
+  color: var(--muted-color);
+  font-weight: 700;
+}
+
+.greenhouse-grid .value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0.2rem 0;
+  color: var(--text-color);
+}
+
+.value .unit {
+  font-size: 1rem;
+  color: var(--muted-color);
+  font-weight: 700;
+}
+
+.metric-detail {
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+}
+
+.system-card {
+  margin-bottom: 1.5rem;
+}
+
+.greenhouse-devices {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 1.2rem 0;
+}
+
+.greenhouse-devices .device-item {
+  background: color-mix(in srgb, var(--surface) 90%, var(--primary-color));
+}
+
+.greenhouse-devices .device-symbol {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.status.status-pending {
+  color: var(--muted-color);
+  font-size: 1rem;
+}
+
+.integration-note {
+  padding: 0.9rem 1rem;
+  border-left: 3px solid var(--warning-color);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--warning-color) 10%, var(--surface));
+  color: var(--text-color);
+  font-size: 0.92rem;
+}
+
+.chat-disclaimer {
+  margin: 0.5rem 0 0;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+}
+
+.chat-input-row input {
+  min-width: 0;
+}
+
+button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.greenhouse-charts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.greenhouse-charts .thingspeak-chart {
+  width: 100%;
+  min-height: 250px;
+  border-radius: 1rem;
+  background: var(--surface);
+}
+
+.site-footer {
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--muted-color);
+}
+
+@media (max-width: 900px) {
+  .greenhouse-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .greenhouse-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .card-heading-row,
+  .dashboard-heading {
+    align-items: flex-start;
+  }
+
+  .greenhouse-devices {
+    grid-template-columns: 1fr;
+  }
+
+  .greenhouse-charts {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .greenhouse-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-heading {
+    flex-direction: column;
+  }
+
+  .dashboard-heading button {
+    width: 100%;
+  }
+
+  .chat-input-row {
+    flex-direction: column;
+  }
+
+  .chat-input-row button {
+    width: 100%;
+  }
+}
+
 .add-device-card {
   margin-bottom: 1.5rem;
 }
@@ -498,20 +759,108 @@ button:hover {
 /* ===== Weather ===== */
 
 .weather-form {
-  display: flex;
-  gap: 1rem;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  align-items: end;
+  gap: 0.8rem;
+}
+
+.weather-location-field {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--text-color);
+  font-weight: 700;
 }
 
 .weather-form input {
   margin: 0;
 }
 
+.weather-form button {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.weather-status {
+  min-height: 1.5rem;
+  margin: 1rem 0 0;
+}
+
+.weather-error {
+  color: var(--danger-color);
+}
+
 .weather-result {
+  display: grid;
+  gap: 1rem;
   margin-top: 1rem;
   padding: 1rem;
   border-radius: 18px;
   background: rgba(34, 197, 94, 0.08);
   border: 1px solid rgba(34, 197, 94, 0.14);
+}
+
+.weather-result[hidden] {
+  display: none;
+}
+
+.weather-current-main,
+.weather-details {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.weather-place {
+  color: var(--text-color);
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.weather-current-main > strong {
+  color: var(--primary-dark);
+  font-size: clamp(2.2rem, 6vw, 3.2rem);
+}
+
+.weather-current-main .unit {
+  margin-left: 0.2rem;
+  font-size: 1.2rem;
+}
+
+.weather-details {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.weather-details > span {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 120px;
+  color: var(--muted-color);
+}
+
+.weather-details strong {
+  color: var(--text-color);
+}
+
+.weather-updated,
+.weather-attribution {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.weather-attribution {
+  margin-top: 1rem;
+}
+
+.weather-attribution a {
+  color: var(--primary-dark);
+  font-weight: 700;
 }
 
 /* ===== Chat Box ===== */
@@ -539,6 +888,7 @@ button:hover {
 
 .chat-message p {
   margin: 0.35rem 0 0;
+  white-space: pre-wrap;
 }
 
 .user-message {
@@ -602,6 +952,34 @@ button:hover {
   background: #ffffff;
   box-shadow: var(--shadow);
   overflow: hidden;
+}
+
+.thingspeak-chart svg {
+  width: 100%;
+  height: 100%;
+}
+
+.thingspeak-chart .chart-title,
+.thingspeak-chart .chart-value {
+  fill: #172018;
+  font: 700 17px system-ui, sans-serif;
+}
+
+.thingspeak-chart .chart-value {
+  fill: #245c27;
+}
+
+.thingspeak-chart .chart-grid-line {
+  stroke: #9aa69b;
+  stroke-width: 1;
+}
+
+.thingspeak-chart .chart-line {
+  fill: none;
+  stroke: #2f7d32;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .add-chart-card {
@@ -924,4 +1302,74 @@ footer {
   .button-row button {
     width: 100%;
   }
+}
+
+/* Greenhouse dashboard overrides after the original assignment styles. */
+.dashboard-grid.greenhouse-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.device-grid.greenhouse-devices {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.chart-grid.greenhouse-charts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.chat-input-row input {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid.greenhouse-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .hero.greenhouse-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .weather-form {
+    grid-template-columns: 1fr;
+  }
+
+  .device-grid.greenhouse-devices,
+  .chart-grid.greenhouse-charts {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 580px) {
+  .dashboard-grid.greenhouse-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-input-row {
+    flex-direction: column;
+  }
+}
+
+.theme-toggle.theme-toggle-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  flex: 0 0 44px;
+  border-radius: 50%;
+  color: var(--text-color);
+  background: var(--surface);
+}
+
+.theme-toggle-icon .material-symbols-rounded {
+  font-size: 22px;
+}
+
+.theme-toggle.theme-toggle-icon:focus-visible {
+  outline: 3px solid var(--primary-color);
+  outline-offset: 3px;
 }
