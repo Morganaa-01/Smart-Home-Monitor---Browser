@@ -1,308 +1,142 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="hu">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Home Monitoring System</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f8f3">
+  <meta name="description" content="ESP32-alapú okos növényház felügyeleti felülete élő szenzoradatokkal és AI-asszisztenssel.">
+  <title>Okos Növényház | Felügyeleti rendszer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <header class="site-header">
-        <nav class="navbar" aria-label="Main navigation">
-            <a class="logo" href="#home" aria-label="Smart Home Monitor home">
-                <span class="logo-icon">🏠</span>
-                <span>Smart Home Monitor</span>
-            </a>
+  <header class="site-header">
+    <nav class="navbar" aria-label="Fő navigáció">
+      <a class="logo" href="#home" aria-label="Okos Növényház kezdőlap">
+        <span class="logo-icon material-symbols-rounded" aria-hidden="true">eco</span>
+        <span>Okos Növényház</span>
+      </a>
+      <button class="menu-toggle" id="menuToggle" type="button" aria-label="Menü megnyitása" aria-expanded="false">☰</button>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="#dashboardSection">Áttekintés</a></li>
+        <li><a href="#weatherSection">Kinti időjárás</a></li>
+        <li><a href="#automationSection">Működés</a></li>
+        <li><a href="#chatSection">AI-asszisztens</a></li>
+        <li><a href="#thingspeak">Mérési előzmények</a></li>
+      </ul>
+      <button class="theme-toggle theme-toggle-icon" id="themeToggle" type="button" aria-label="Téma váltása" aria-pressed="false" title="Téma váltása">
+        <span class="material-symbols-rounded" aria-hidden="true">dark_mode</span>
+      </button>
+    </nav>
 
-            <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false">
-                ☰
-            </button>
+    <section class="hero greenhouse-hero" id="home">
+      <div>
+        <p class="eyebrow">ESP32 · IoT növényfelügyelet</p>
+        <h1>A növényház állapota, egy helyen</h1>
+        <p class="hero-copy">Kövesd a szenzorok méréseit, nézd meg a helyi automatika állapotát, és kérj segítséget az aktuális környezeti adatok alapján.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#dashboardSection">Mérések megtekintése</a>
+          <a class="button secondary" href="#chatSection">Kérdés az asszisztenshez</a>
+        </div>
+      </div>
+      <article class="status-card latest-card" aria-live="polite">
+        <div class="card-heading-row">
+          <div><p class="eyebrow">ThingSpeak</p><h2>Legutóbbi adatcsomag</h2></div>
+          <span class="connection-pill" id="connectionStatus">Kapcsolódás…</span>
+        </div>
+        <p class="muted" id="lastUpdated">Mérés betöltése…</p>
+        <div class="status-row"><span>Hőmérséklet</span><strong id="heroTemperature">—</strong></div>
+        <div class="status-row"><span>Páratartalom</span><strong id="heroHumidity">—</strong></div>
+        <div class="status-row"><span>Légnyomás</span><strong id="heroPressure">—</strong></div>
+        <div class="status-row"><span>Eső</span><strong id="heroRain">—</strong></div>
+      </article>
+    </section>
+  </header>
 
-            <ul class="nav-links" id="navLinks">
-                <li><a href="#dashboardSection">Dashboard</a></li>
-                <li><a href="#weatherSection">Weather API</a></li>
-                <li><a href="#automationSection">Automation</a></li>
-                <li><a href="#chatSection">AI Chat</a></li>
+  <main class="page-content">
+    <section class="section-heading dashboard-heading" id="dashboardSection">
+      <div><p class="eyebrow">Élő felügyelet</p><h2>Környezeti mérések</h2></div>
+      <button class="button secondary" id="refreshDataBtn" type="button">Frissítés</button>
+    </section>
+    <p class="muted section-intro">Az értékeket az ESP32 tölti fel a ThingSpeak csatornára. A felület 30 másodpercenként frissül.</p>
 
-                <li class="dropdown">
-                    <a class="dropdown-toggle" href="#thingspeak">Devices ▾</a>
+    <section class="dashboard-grid greenhouse-grid" aria-label="Legutóbbi szenzoradatok">
+      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">device_thermostat</span><p class="metric-label">Hőmérséklet</p><p class="value"><span id="temperatureValue">—</span><span class="unit">°C</span></p><p class="metric-detail">Alsó hőmérséklet-érzékelő</p></article>
+      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">water_drop</span><p class="metric-label">Relatív páratartalom</p><p class="value"><span id="humidityValue">—</span><span class="unit">%</span></p><p class="metric-detail">Alsó páratartalom-érzékelő</p></article>
+      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">speed</span><p class="metric-label">Légnyomás</p><p class="value"><span id="pressureValue">—</span></p><p class="metric-detail">ThingSpeak field3; a mértékegység a firmware-től függ</p></article>
+      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">light_mode</span><p class="metric-label">Megvilágítás</p><p class="value"><span id="lightValue">—</span><span class="unit">lux</span></p><p class="metric-detail">TSL fényérzékelő</p></article>
+    </section>
 
-                    <ul class="dropdown-menu">
-                        <li><a href="#thingspeak">ThingSpeak Charts</a></li>
-                        <li><a href="add-device.html">Add Device</a></li>
-                    </ul>
-                </li>
+    <section class="card weather-card" id="weatherSection" aria-labelledby="weatherHeading">
+      <div class="section-heading">
+        <div><p class="eyebrow">Külső időjárás</p><h2 id="weatherHeading">Kinti hőmérséklet</h2></div>
+        <span class="weather-icon material-symbols-rounded" aria-hidden="true">partly_cloudy_day</span>
+      </div>
+      <form class="weather-form" id="weatherForm">
+        <label class="weather-location-field" for="weatherLocationInput">Település
+          <input type="text" id="weatherLocationInput" maxlength="80" placeholder="Például: Budapest vagy Szolnok" autocomplete="address-level2">
+        </label>
+        <button class="button primary" type="submit" id="weatherSearchBtn">Időjárás lekérése</button>
+        <button class="button secondary" type="button" id="useMyLocationBtn"><span class="material-symbols-rounded" aria-hidden="true">my_location</span> Saját helyzetem</button>
+      </form>
+      <p class="weather-status muted" id="weatherStatus" role="status" aria-live="polite">Írj be egy települést, vagy engedélyezd a helymeghatározást.</p>
+      <div class="weather-result" id="weatherResult" hidden>
+        <div class="weather-current-main"><span class="weather-place" id="weatherPlace"></span><strong><span id="weatherTemperature">—</span><span class="unit">°C</span></strong></div>
+        <div class="weather-details">
+          <span>Hőérzet <strong id="weatherFeelsLike">—</strong></span>
+          <span>Páratartalom <strong id="weatherHumidity">—</strong></span>
+          <span>Szél <strong id="weatherWind">—</strong></span>
+          <span>Csapadék <strong id="weatherPrecipitation">—</strong></span>
+        </div>
+        <p class="weather-updated muted" id="weatherUpdated"></p>
+      </div>
+      <p class="weather-attribution muted">Időjárási adatok: <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>. A helymeghatározás csak a gomb megnyomása és engedélyezés után fut; a koordinátákat az időjárás-lekérdezéshez továbbítja.</p>
+    </section>
 
-                <li><a href="#eventLogSection">Event Log</a></li>
-            </ul>
+    <section class="card system-card" id="automationSection">
+      <div class="section-heading"><div><p class="eyebrow">Helyi automatika</p><h2>Beavatkozók állapota</h2></div><span class="mode-pill">Vezérlés az ESP32-n</span></div>
+      <p class="muted">A mikrovezérlő a szenzorok alapján, helyben futtatja a szabályokat. Ez az oldal az utolsó feltöltött állapotot mutatja.</p>
+      <div class="device-grid greenhouse-devices">
+        <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">mode_fan</span><h3>Ventilátor</h3><p id="fanStatus" class="status status-pending">Nincs adat</p></article>
+        <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">lightbulb</span><h3>LED</h3><p id="ledStatus" class="status status-pending">Nincs adat</p></article>
+        <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">roofing</span><h3>Növényház teteje</h3><p id="roofStatus" class="status status-pending">Nincs adat</p></article>
+        <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">rainy</span><h3>Esőérzékelő</h3><p id="rainStatus" class="status status-pending">Nincs adat</p></article>
+      </div>
+      <div class="integration-note" id="integrationNote"><strong>Integrációs megjegyzés:</strong> field1 hőmérséklet, field2 páratartalom, field3 légnyomás, field4 lux, field5 eső, field6 ventilátor, field7 LED, field8 tető. A mikrovezérlő a szenzorok alapján helyben futtatja a szabályokat; távoli vezérlőparancsot ez az oldal nem küld.
+    </section>
 
-            <button class="theme-toggle" id="themeToggle" type="button">
-                Toggle theme
-            </button>
-        </nav>
+    <section class="card chat-card" id="chatSection">
+      <p class="eyebrow">Növénygondozási segítség</p>
+      <h2>AI-asszisztens</h2>
+      <p class="muted">Kérdezz a növényház aktuális méréseiről. Az asszisztens megkapja az utolsó betöltött szenzoradatokat és eszközállapotokat.</p>
+      <div id="chatMessages" class="chat-messages" aria-live="polite" aria-label="Beszélgetés"></div>
+      <form class="chat-input-row" id="chatForm">
+        <label class="visually-hidden" for="chatInput">Kérdés az AI-asszisztenshez</label>
+        <input type="text" id="chatInput" maxlength="1000" placeholder="Például: Mit tegyek, ha túl magas a páratartalom?" required>
+        <button type="submit" id="sendChatBtn">Küldés</button>
+      </form>
+      <p class="chat-disclaimer">A javaslat tájékoztató jellegű; a beavatkozókat az asszisztens nem vezérli.</p>
+    </section>
 
-        <section class="hero" id="home">
-            <div>
-                <p class="eyebrow">Browser Programming Assignment</p>
-                <h1>Smart Home Monitoring System</h1>
-                <p>
-                    A browser-based dashboard that simulates smart home sensor monitoring,
-                    automation rules, API-based data loading and assistant chat features.
-                </p>
+    <section class="section" id="thingspeak">
+      <div class="section-heading"><div><p class="eyebrow">ThingSpeak · ESP32</p><h2>Mérési előzmények</h2><p class="muted">A grafikonok a firmware jelenlegi mezőkiosztását követik.</p></div></div>
+      <div class="chart-grid greenhouse-charts">
+        <div class="thingspeak-chart" data-field-chart="1" title="Hőmérséklet előzményei"></div>
+        <div class="thingspeak-chart" data-field-chart="2" title="Páratartalom előzményei"></div>
+        <div class="thingspeak-chart" data-field-chart="3" title="Légnyomás előzményei"></div>
+        <div class="thingspeak-chart" data-field-chart="4" title="Megvilágítás előzményei"></div>
+        <div class="thingspeak-chart" data-field-chart="5" title="Esőérzékelő előzményei"></div>
+        <div class="thingspeak-chart" data-field-chart="6" title="Ventilátor előzményei"></div>
+        <div class="thingspeak-chart" data-field-chart="7" title="LED állapota"></div>
+        <div class="thingspeak-chart" data-field-chart="8" title="Tetőállapot előzményei"></div>
+      </div>
+    </section>
+  </main>
 
-                <div class="hero-actions">
-                    <a class="button primary" href="#dashboardSection">Open dashboard</a>
-                    <a class="button secondary" href="#weatherSection">Fetch weather</a>
-                </div>
-            </div>
-
-            <article class="status-card" aria-label="Latest ThingSpeak sensor data">
-                <h2>Latest ThingSpeak Data</h2>
-                <p id="systemStatus">Loading sensor data...</p>
-
-                <div class="status-row">
-                    <span>Temperature</span>
-                    <strong id="heroTemperature">-- °C</strong>
-                </div>
-
-                <div class="status-row">
-                    <span>Humidity</span>
-                    <strong id="heroHumidity">-- %</strong>
-                </div>
-
-                <div class="status-row">
-                    <span>Air pressure</span>
-                    <strong id="heroAirPressure">--</strong>
-                </div>
-
-                <div class="status-row">
-                    <span>Fan</span>
-                    <strong id="heroFanStatus">--</strong>
-                </div>
-
-                <div class="status-row">
-                    <span>Light</span>
-                    <strong id="heroLight">--</strong>
-                </div>
-            </article>
-        </section>
-    </header>
-
-    <main>
-        <section id="loginSection" class="card login-card">
-            <h2>Login</h2>
-            <p class="muted">
-                Please log in to access the Smart Home Monitoring System dashboard.
-            </p>
-
-            <label for="usernameInput">Username</label>
-            <input type="text" id="usernameInput" placeholder="Enter username">
-
-            <label for="passwordInput">Password</label>
-            <input type="password" id="passwordInput" placeholder="Enter password">
-
-            <button id="loginBtn">Login</button>
-
-            <p id="loginMessage" class="message"></p>
-
-            <p class="demo-login-info">
-                Demo login: <strong>admin</strong> / <strong>smart123</strong>
-            </p>
-        </section>
-
-        <section id="dashboardSection" class="hidden">
-            <section class="hero-section">
-                <p class="eyebrow">Browser Programming Assignment</p>
-                <h1>Smart Home Monitoring System</h1>
-                <p>
-                    A browser-based dashboard that simulates smart home sensor monitoring,
-                    automation rules, API-based data loading, local user login and a smart assistant chat.
-                </p>
-            </section>
-
-            <div class="dashboard-topbar">
-                <p>Logged in as <strong id="loggedInUserText">admin</strong></p>
-                <button id="logoutBtn" class="danger-btn">Logout</button>
-            </div>
-
-            <section class="dashboard-grid">
-                <article class="card sensor-card">
-                    <h2>Indoor Temperature</h2>
-                    <p class="value"><span id="temperatureValue">22</span> °C</p>
-                    <input type="range" id="temperatureSlider" min="10" max="40" value="22">
-                </article>
-
-                <article class="card sensor-card">
-                    <h2>Humidity</h2>
-                    <p class="value"><span id="humidityValue">45</span> %</p>
-                    <input type="range" id="humiditySlider" min="10" max="90" value="45">
-                </article>
-
-                <article class="card sensor-card">
-                    <h2>Air Quality</h2>
-                    <p class="value"><span id="airQualityValue">60</span> %</p>
-                    <input type="range" id="airQualitySlider" min="0" max="100" value="60">
-                </article>
-
-                <article class="card sensor-card">
-                    <h2>Energy Usage</h2>
-                    <p class="value"><span id="energyValue">350</span> W</p>
-                    <input type="range" id="energySlider" min="50" max="2000" value="350">
-                </article>
-            </section>
-
-            <section id="automationSection" class="card">
-                <h2>Smart Device Status</h2>
-                <p class="muted">
-                    Device states are updated based on the current sensor values.
-                </p>
-
-                <div class="device-grid">
-                    <div class="device-item">
-                        <h3>Heating</h3>
-                        <p id="heatingStatus" class="status">OFF</p>
-                    </div>
-
-                    <div class="device-item">
-                        <h3>Cooling</h3>
-                        <p id="coolingStatus" class="status">OFF</p>
-                    </div>
-
-                    <div class="device-item">
-                        <h3>Air Purifier</h3>
-                        <p id="airPurifierStatus" class="status">OFF</p>
-                    </div>
-
-                    <div class="device-item">
-                        <h3>Energy Alert</h3>
-                        <p id="energyAlertStatus" class="status">NORMAL</p>
-                    </div>
-                </div>
-
-                <div class="button-row">
-                    <button id="loadSensorDataBtn">Load Sensor Data</button>
-                    <button id="runAutomationBtn">Run Automation</button>
-                </div>
-            </section>
-
-            <section id="weatherSection" class="card">
-                <h2>Outdoor Weather</h2>
-                <p class="muted">
-                    This section uses Fetch API to request weather data from Open-Meteo.
-                </p>
-
-                <div class="weather-form">
-                    <input type="text" id="cityInput" placeholder="Enter city, e.g. Kuopio">
-                    <button id="weatherBtn">Get Weather</button>
-                </div>
-
-                <div id="weatherResult" class="weather-result">
-                    <p>No weather data loaded yet.</p>
-                </div>
-            </section>
-
-            <section id="chatSection" class="card chat-card">
-                <h2>Smart Home Assistant</h2>
-                <p class="muted">
-                    Ask the AI assistant about indoor temperature, humidity, air quality, energy usage or smart devices.
-                </p>
-
-                <div id="chatMessages" class="chat-messages"></div>
-
-                <div class="chat-input-row">
-                    <input type="text" id="chatInput" placeholder="Ask the AI assistant...">
-                    <button id="sendChatBtn">Send</button>
-                </div>
-            </section>
-
-            <section class="section" id="thingspeak">
-                <section id="addedDevicesSection" class="card add-device-card">
-                    <h2>Added Devices</h2>
-                    <p class="muted">
-                        These are the smart home devices currently saved in the browser.
-                        To add a new device, open the Add Device page.
-                    </p>
-
-                    <div class="device-list-wrapper">
-                        <ul id="deviceList" class="device-list">
-                            <li>No devices added yet.</li>
-                        </ul>
-                    </div>
-
-                    <a class="button primary" href="add-device.html">Add new device</a>
-                </section>
-
-                <div class="section-heading">
-                    <p class="eyebrow">ThingSpeak API</p>
-                    <h2>Historical Sensor Charts</h2>
-                    <p>
-                        These charts show real historical sensor data from a public ThingSpeak channel.
-                        The data was originally collected by an ESP32-based sensor system.
-                    </p>
-                </div>
-
-                <div class="chart-grid">
-                    <iframe
-                        class="thingspeak-chart"
-                        src="https://thingspeak.com/channels/3156213/charts/1?bgcolor=%23ffffff&color=%232f7d32&dynamic=true&results=60&type=line&title=Temperature&width=auto&height=200"
-                        title="Temperature chart">
-                    </iframe>
-
-                    <iframe
-                        class="thingspeak-chart"
-                        src="https://thingspeak.com/channels/3156213/charts/2?bgcolor=%23ffffff&color=%232f7d32&dynamic=true&results=60&type=line&title=Humidity&width=auto&height=200"
-                        title="Humidity chart">
-                    </iframe>
-
-                    <iframe
-                        class="thingspeak-chart"
-                        src="https://thingspeak.com/channels/3156213/charts/3?bgcolor=%23ffffff&color=%232f7d32&dynamic=true&results=60&type=line&title=Soil%20Moisture&width=auto&height=200"
-                        title="Soil moisture chart">
-                    </iframe>
-
-                    <iframe
-                        class="thingspeak-chart"
-                        src="https://thingspeak.com/channels/3156213/charts/4?bgcolor=%23ffffff&color=%232f7d32&dynamic=true&results=60&type=line&title=Rain&width=auto&height=200"
-                        title="Rain chart">
-                    </iframe>
-
-                    <iframe
-                        class="thingspeak-chart"
-                        src="https://thingspeak.com/channels/3156213/charts/5?bgcolor=%23ffffff&color=%232f7d32&dynamic=true&results=60&type=line&title=Fan&width=auto&height=200"
-                        title="Fan chart">
-                    </iframe>
-
-                    <iframe
-                        class="thingspeak-chart"
-                        src="https://thingspeak.com/channels/3156213/charts/6?bgcolor=%23ffffff&color=%232f7d32&dynamic=true&results=60&type=line&title=Air%20Pressure&width=auto&height=200"
-                        title="Air pressure chart">
-                    </iframe>
-
-                    <iframe
-                        class="thingspeak-chart"
-                        src="https://thingspeak.com/channels/3156213/charts/7?bgcolor=%23ffffff&color=%232f7d32&dynamic=true&results=60&type=line&title=Light&width=auto&height=200"
-                        title="Light chart">
-                    </iframe>
-
-                    <a class="add-chart-card" href="add-device.html">
-                        <span class="add-chart-icon">+</span>
-                        <h3>Add new device</h3>
-                        <p>Connect a new sensor or create a new chart for the dashboard.</p>
-                    </a>
-                </div>
-            </section>
-
-            <section id="eventLogSection" class="card">
-                <h2>System Event Log</h2>
-                <ul id="eventLog"></ul>
-            </section>
-        </section>
-    </main>
-
-    <footer>
-        <p>Created for Browser Programming course | Smart Home Monitoring System</p>
-    </footer>
-
-    <script src="script.js"></script>
+  <footer class="site-footer"><p>IoT-alapú okos növényház · ESP32 · ThingSpeak</p></footer>
+  <script src="config.js" defer></script>
+  <script src="script.js" defer></script>
 </body>
 </html>

@@ -1,717 +1,377 @@
-const appState = {
-    user: localStorage.getItem("smartHomeLoggedInUser") || null,
-    devices: JSON.parse(localStorage.getItem("smartHomeDevices")) || [
-        { name: "Living Room Light", type: "Light" }
-    ],
-    sensors: {
-        temperature: 22,
-        humidity: 45,
-        airQuality: 60,
-        energy: 350
-    }
+const REFRESH_INTERVAL_MS = 30_000;
+
+const state = {
+  readings: null,
+  lastEntry: null,
+  refreshTimer: null
 };
 
-const validUser = {
-    username: "admin",
-    password: "smart123"
-};
+const $ = (id) => document.getElementById(id);
 
-/* ===== Login elements ===== */
-
-const loginSection = document.getElementById("loginSection");
-const dashboardSection = document.getElementById("dashboardSection");
-const usernameInput = document.getElementById("usernameInput");
-const passwordInput = document.getElementById("passwordInput");
-const loginBtn = document.getElementById("loginBtn");
-const loginMessage = document.getElementById("loginMessage");
-const logoutBtn = document.getElementById("logoutBtn");
-const loggedInUserText = document.getElementById("loggedInUserText");
-
-/* ===== Navbar elements ===== */
-
-const themeToggle = document.getElementById("themeToggle");
-const menuToggle = document.getElementById("menuToggle");
-const navLinks = document.getElementById("navLinks");
-
-const elements = {
-    themeToggle,
-    menuToggle,
-    navLinks
-};
-
-/* ===== Sensor elements ===== */
-
-const temperatureSlider = document.getElementById("temperatureSlider");
-const humiditySlider = document.getElementById("humiditySlider");
-const airQualitySlider = document.getElementById("airQualitySlider");
-const energySlider = document.getElementById("energySlider");
-
-const temperatureValue = document.getElementById("temperatureValue");
-const humidityValue = document.getElementById("humidityValue");
-const airQualityValue = document.getElementById("airQualityValue");
-const energyValue = document.getElementById("energyValue");
-
-const heatingStatus = document.getElementById("heatingStatus");
-const coolingStatus = document.getElementById("coolingStatus");
-const airPurifierStatus = document.getElementById("airPurifierStatus");
-const energyAlertStatus = document.getElementById("energyAlertStatus");
-
-const loadSensorDataBtn = document.getElementById("loadSensorDataBtn");
-const runAutomationBtn = document.getElementById("runAutomationBtn");
-const eventLog = document.getElementById("eventLog");
-
-/* ===== Weather elements ===== */
-
-const cityInput = document.getElementById("cityInput");
-const weatherBtn = document.getElementById("weatherBtn");
-const weatherResult = document.getElementById("weatherResult");
-
-/* ===== Chat elements ===== */
-
-const chatMessages = document.getElementById("chatMessages");
-const chatInput = document.getElementById("chatInput");
-const sendChatBtn = document.getElementById("sendChatBtn");
-
-/* ===== Device form/list elements ===== */
-
-const addDeviceForm = document.getElementById("addDeviceForm");
-const deviceNameInput = document.getElementById("deviceNameInput");
-const deviceTypeInput = document.getElementById("deviceTypeInput");
-const deviceList = document.getElementById("deviceList");
-
-/* ===== General log ===== */
-
-function addLog(message) {
-    if (!eventLog) {
-        return;
-    }
-
-    const listItem = document.createElement("li");
-    const time = new Date().toLocaleTimeString();
-
-    listItem.textContent = `[${time}] ${message}`;
-    eventLog.prepend(listItem);
-}
-
-/* ===== Authentication ===== */
-
-function updateAuthView() {
-    if (!loginSection || !dashboardSection) {
-        return;
-    }
-
-    if (appState.user) {
-        loginSection.classList.add("hidden");
-        dashboardSection.classList.remove("hidden");
-
-        if (loggedInUserText) {
-            loggedInUserText.textContent = appState.user;
-        }
-
-        loadLatestThingSpeakHeroData();
-    } else {
-        loginSection.classList.remove("hidden");
-        dashboardSection.classList.add("hidden");
-
-        if (loggedInUserText) {
-            loggedInUserText.textContent = "";
-        }
-
-        showLockedThingSpeakHeroData();
-    }
-}
-
-function loginUser() {
-    const username = usernameInput.value.trim();
-    const password = passwordInput.value.trim();
-
-    if (username === "" || password === "") {
-        loginMessage.textContent = "Please enter both username and password.";
-        loginMessage.style.color = "red";
-        return;
-    }
-
-    if (username === validUser.username && password === validUser.password) {
-        appState.user = username;
-        localStorage.setItem("smartHomeLoggedInUser", username);
-
-        usernameInput.value = "";
-        passwordInput.value = "";
-        loginMessage.textContent = "";
-
-        updateAuthView();
-
-        window.scrollTo({
-            top: 0,
-            behavior: "smooth"
-        });
-
-        addLog(`${username} logged in successfully.`);
-    } else {
-        loginMessage.textContent = "Invalid username or password.";
-        loginMessage.style.color = "red";
-    }
-}
-
-function logoutUser() {
-    addLog(`${appState.user} logged out.`);
-
-    appState.user = null;
-    localStorage.removeItem("smartHomeLoggedInUser");
-
-    updateAuthView();
-
-    window.scrollTo({
-        top: 0,
-        behavior: "smooth"
+function renderThingSpeakCharts(feeds) {
+  const svgNS = "http://www.w3.org/2000/svg";
+  document.querySelectorAll("[data-field-chart]").forEach((chart) => {
+    const field = "field" + chart.dataset.fieldChart;
+    const points = feeds.map((feed) => feed[field] === null || feed[field] === "" ? null : Number(feed[field])).filter(Number.isFinite);
+    const labels = { 1: "Hőmérséklet előzményei", 2: "Páratartalom előzményei", 3: "Légnyomás előzményei", 4: "Megvilágítás előzményei", 5: "Esőérzékelő előzményei", 6: "Ventilátor előzményei", 7: "LED állapota", 8: "Tetőállapot előzményei" };
+    const label = labels[chart.dataset.fieldChart] || chart.title;
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("viewBox", "0 0 760 220");
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", label);
+    const title = document.createElementNS(svgNS, "text");
+    title.setAttribute("x", "24"); title.setAttribute("y", "30");
+    title.setAttribute("class", "chart-title"); title.textContent = label; svg.append(title);
+    [70, 110, 150, 190].forEach((y) => {
+      const gridLine = document.createElementNS(svgNS, "line");
+      gridLine.setAttribute("x1", "24"); gridLine.setAttribute("x2", "736");
+      gridLine.setAttribute("y1", String(y)); gridLine.setAttribute("y2", String(y));
+      gridLine.setAttribute("class", "chart-grid-line"); svg.append(gridLine);
     });
+    if (points.length) {
+      const min = Math.min(...points); const range = Math.max(...points) - min || 1;
+      const pathData = points.map((value, index) => {
+        const x = points.length === 1 ? 380 : 28 + (index / (points.length - 1)) * 704;
+        const y = 190 - ((value - min) / range) * 120;
+        return (index ? "L" : "M") + x.toFixed(1) + "," + y.toFixed(1);
+      }).join(" ");
+      const line = document.createElementNS(svgNS, "path");
+      line.setAttribute("d", pathData); line.setAttribute("class", "chart-line"); svg.append(line);
+      const latest = document.createElementNS(svgNS, "text");
+      latest.setAttribute("x", "736"); latest.setAttribute("y", "30");
+      latest.setAttribute("text-anchor", "end"); latest.setAttribute("class", "chart-value");
+      latest.textContent = String(points[points.length - 1]); svg.append(latest);
+    }
+    chart.replaceChildren(svg);
+  });
 }
-
-/* ===== Sensor dashboard ===== */
-
-function updateSensorValues() {
-    if (
-        !temperatureSlider ||
-        !humiditySlider ||
-        !airQualitySlider ||
-        !energySlider ||
-        !temperatureValue ||
-        !humidityValue ||
-        !airQualityValue ||
-        !energyValue
-    ) {
-        return;
-    }
-
-    appState.sensors.temperature = Number(temperatureSlider.value);
-    appState.sensors.humidity = Number(humiditySlider.value);
-    appState.sensors.airQuality = Number(airQualitySlider.value);
-    appState.sensors.energy = Number(energySlider.value);
-
-    temperatureValue.textContent = appState.sensors.temperature;
-    humidityValue.textContent = appState.sensors.humidity;
-    airQualityValue.textContent = appState.sensors.airQuality;
-    energyValue.textContent = appState.sensors.energy;
-}
-
-async function loadSensorDataFromApi() {
-    try {
-        const response = await fetch("sensor-data.json");
-
-        if (!response.ok) {
-            throw new Error("Could not load sensor data.");
-        }
-
-        const data = await response.json();
-
-        appState.sensors.temperature = Number(data.indoorTemperature);
-        appState.sensors.humidity = Number(data.humidity);
-        appState.sensors.airQuality = Number(data.airQuality);
-        appState.sensors.energy = Number(data.energy);
-
-        if (temperatureSlider) {
-            temperatureSlider.value = appState.sensors.temperature;
-        }
-
-        if (humiditySlider) {
-            humiditySlider.value = appState.sensors.humidity;
-        }
-
-        if (airQualitySlider) {
-            airQualitySlider.value = appState.sensors.airQuality;
-        }
-
-        if (energySlider) {
-            energySlider.value = appState.sensors.energy;
-        }
-
-        updateSensorValues();
-
-        addLog("Sensor data loaded from mock sensor API.");
-    } catch (error) {
-        addLog("Failed to load sensor data from API.");
-    }
-}
-
-/* ===== ThingSpeak latest data ===== */
-
-function showLockedThingSpeakHeroData() {
-    const systemStatus = document.getElementById("systemStatus");
-    const heroTemperature = document.getElementById("heroTemperature");
-    const heroHumidity = document.getElementById("heroHumidity");
-    const heroAirPressure = document.getElementById("heroAirPressure");
-    const heroFanStatus = document.getElementById("heroFanStatus");
-    const heroLight = document.getElementById("heroLight");
-
-    if (systemStatus) {
-        systemStatus.textContent = "Nice try. The smart home secrets are hiding behind the login door.";
-    }
-
-    if (heroTemperature) {
-        heroTemperature.textContent = "Locked";
-    }
-
-    if (heroHumidity) {
-        heroHumidity.textContent = "Locked";
-    }
-
-    if (heroAirPressure) {
-        heroAirPressure.textContent = "Locked";
-    }
-
-    if (heroFanStatus) {
-        heroFanStatus.textContent = "Locked";
-    }
-
-    if (heroLight) {
-        heroLight.textContent = "Locked";
-    }
-}
-
-async function loadLatestThingSpeakHeroData() {
-    if (!appState.user) {
-        showLockedThingSpeakHeroData();
-        return;
-    }
-
-    const url = "https://api.thingspeak.com/channels/3156213/feeds/last.json";
-
-    const systemStatus = document.getElementById("systemStatus");
-    const heroTemperature = document.getElementById("heroTemperature");
-    const heroHumidity = document.getElementById("heroHumidity");
-    const heroAirPressure = document.getElementById("heroAirPressure");
-    const heroFanStatus = document.getElementById("heroFanStatus");
-    const heroLight = document.getElementById("heroLight");
-
-    try {
-        const response = await fetch(url);
-
-        if (!response.ok) {
-            throw new Error("Could not load ThingSpeak data.");
-        }
-
-        const data = await response.json();
-
-        const temperature = Number(data.field1);
-        const humidity = Number(data.field2);
-        const airPressure = Number(data.field6);
-        const fan = Number(data.field5);
-        const light = Number(data.field7);
-
-        if (heroTemperature) {
-            heroTemperature.textContent = Number.isFinite(temperature)
-                ? `${temperature.toFixed(1)} °C`
-                : "-- °C";
-        }
-
-        if (heroHumidity) {
-            heroHumidity.textContent = Number.isFinite(humidity)
-                ? `${humidity.toFixed(0)} %`
-                : "-- %";
-        }
-
-        if (heroAirPressure) {
-            heroAirPressure.textContent = Number.isFinite(airPressure)
-                ? `${airPressure.toFixed(1)} hPa`
-                : "--";
-        }
-
-        if (heroFanStatus) {
-            heroFanStatus.textContent = fan === 1 ? "ON" : "OFF";
-        }
-
-        if (heroLight) {
-            heroLight.textContent = Number.isFinite(light)
-                ? `${light.toFixed(0)} lux`
-                : "--";
-        }
-
-        if (systemStatus) {
-            const entryDate = new Date(data.created_at).toLocaleString();
-            systemStatus.textContent = `Last sensor update: ${entryDate}`;
-        }
-
-        addLog("Latest ThingSpeak sensor data loaded.");
-    } catch (error) {
-        if (systemStatus) {
-            systemStatus.textContent = "ThingSpeak data could not be loaded.";
-        }
-
-        addLog("Failed to load latest ThingSpeak sensor data.");
-    }
-}
-
-/* ===== Automation ===== */
-
-function setStatus(element, text, className) {
-    if (!element) {
-        return;
-    }
-
-    element.textContent = text;
-    element.className = `status ${className}`;
-}
-
-function runSmartHomeAutomation() {
-    updateSensorValues();
-
-    const temperature = appState.sensors.temperature;
-    const airQuality = appState.sensors.airQuality;
-    const energy = appState.sensors.energy;
-
-    if (temperature < 19) {
-        setStatus(heatingStatus, "ON", "on");
-        setStatus(coolingStatus, "OFF", "off");
-        addLog("Heating turned on because indoor temperature is low.");
-    } else if (temperature > 27) {
-        setStatus(heatingStatus, "OFF", "off");
-        setStatus(coolingStatus, "ON", "on");
-        addLog("Cooling turned on because indoor temperature is high.");
-    } else {
-        setStatus(heatingStatus, "OFF", "off");
-        setStatus(coolingStatus, "OFF", "off");
-        addLog("Temperature is comfortable. Heating and cooling are off.");
-    }
-
-    if (airQuality < 50) {
-        setStatus(airPurifierStatus, "ON", "on");
-        addLog("Air purifier turned on because air quality is low.");
-    } else {
-        setStatus(airPurifierStatus, "OFF", "off");
-        addLog("Air quality is acceptable. Air purifier is off.");
-    }
-
-    if (energy > 1200) {
-        setStatus(energyAlertStatus, "HIGH", "warning");
-        addLog("Energy usage is high. Energy alert is active.");
-    } else {
-        setStatus(energyAlertStatus, "NORMAL", "on");
-        addLog("Energy usage is normal.");
-    }
-}
-
-/* ===== Weather API ===== */
-
-async function getCoordinates(city) {
-    const geocodingUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`;
-
-    const response = await fetch(geocodingUrl);
-
-    if (!response.ok) {
-        throw new Error("Could not load city data.");
-    }
-
-    const data = await response.json();
-
-    if (!data.results || data.results.length === 0) {
-        throw new Error("City not found.");
-    }
-
-    return {
-        name: data.results[0].name,
-        country: data.results[0].country,
-        latitude: data.results[0].latitude,
-        longitude: data.results[0].longitude
-    };
-}
-
-async function getWeather() {
-    const city = cityInput.value.trim();
-
-    if (city.length === 0) {
-        weatherResult.innerHTML = "<p>Please enter a city name.</p>";
-        return;
-    }
-
-    weatherResult.innerHTML = "<p>Loading weather data...</p>";
-
-    try {
-        const location = await getCoordinates(city);
-
-        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m`;
-
-        const response = await fetch(weatherUrl);
-
-        if (!response.ok) {
-            throw new Error("Weather request failed.");
-        }
-
-        const data = await response.json();
-
-        weatherResult.innerHTML = `
-            <h3>${location.name}, ${location.country}</h3>
-            <p>Temperature: <strong>${data.current.temperature_2m} °C</strong></p>
-            <p>Humidity: <strong>${data.current.relative_humidity_2m} %</strong></p>
-            <p>Wind speed: <strong>${data.current.wind_speed_10m} km/h</strong></p>
-        `;
-
-        addLog(`Weather data loaded for ${location.name}.`);
-    } catch (error) {
-        weatherResult.innerHTML = `<p>${error.message}</p>`;
-        addLog("Weather API request failed.");
-    }
-}
-
-/* ===== AI Chat ===== */
 
 function addChatMessage(sender, message, type) {
-    if (!chatMessages) {
-        return;
-    }
-
-    const messageElement = document.createElement("div");
-    messageElement.className = `chat-message ${type}-message`;
-
-    messageElement.innerHTML = `
-        <strong>${sender}:</strong>
-        <p>${message}</p>
-    `;
-
-    chatMessages.appendChild(messageElement);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+  const item = document.createElement("article");
+  item.className = `chat-message ${type}-message`;
+  const heading = document.createElement("strong");
+  heading.textContent = sender;
+  const body = document.createElement("p");
+  body.textContent = message;
+  item.append(heading, body);
+  $("chatMessages").append(item);
+  $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+  return body;
 }
 
-function getSensorContext() {
-    return {
-        temperature: appState.sensors.temperature,
-        humidity: appState.sensors.humidity,
-        airQuality: appState.sensors.airQuality,
-        energy: appState.sensors.energy,
-        heatingStatus: heatingStatus ? heatingStatus.textContent : "OFF",
-        coolingStatus: coolingStatus ? coolingStatus.textContent : "OFF",
-        airPurifierStatus: airPurifierStatus ? airPurifierStatus.textContent : "OFF",
-        energyAlertStatus: energyAlertStatus ? energyAlertStatus.textContent : "NORMAL"
-    };
+function isSimpleGreeting(message) {
+  return /^(szia|helló|hello|üdv|jó napot|jó reggelt|jó estét|szevasz|szervusz|hi|hey)[!.?\s]*$/iu.test(message.trim());
 }
 
-async function sendChatMessage() {
-    const userMessage = chatInput.value.trim();
+function cleanAssistantReply(message) {
+  return String(message)
+    .replace(/\\([\\`*_{}\[\]()#+\-.!>])/g, "$1")
+    .replace(/\*\*(.*?)\*\*/gs, "$1")
+    .replace(/(^|\n)#{1,6}\s*/g, "$1")
+    .replace(/(^|\n)\s*[-*]\s+/g, "$1• ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
-    if (userMessage === "") {
-        return;
-    }
+function numericField(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
-    addChatMessage("You", userMessage, "user");
-    chatInput.value = "";
+function formatted(value, digits = 0) {
+  return value === null ? "—" : new Intl.NumberFormat("hu-HU", {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits
+  }).format(value);
+}
 
-    addChatMessage("Assistant", "Thinking...", "bot");
+function setMetric(id, value, unit, digits = 0) {
+  $(id).textContent = value === null ? "—" : `${formatted(value, digits)} ${unit}`;
+}
 
+function setNumber(id, value, digits = 0) {
+  $(id).textContent = formatted(value, digits);
+}
+
+function setStateBadge(id, label, stateName) {
+  const element = $(id);
+  element.textContent = label;
+  element.className = `status status-${stateName}`;
+}
+
+function renderReadings(entry) {
+  const fields = {
+    temperature: numericField(entry.field1),
+    humidity: numericField(entry.field2),
+    pressure: numericField(entry.field3),
+    light: numericField(entry.field4),
+    rain: numericField(entry.field5),
+    fan: numericField(entry.field6),
+    led: numericField(entry.field7),
+    roofOpen: numericField(entry.field8)
+  };
+
+  state.readings = fields;
+  state.lastEntry = entry;
+
+  setNumber("temperatureValue", fields.temperature, 1);
+  setNumber("humidityValue", fields.humidity);
+  setNumber("pressureValue", fields.pressure, 1);
+  setNumber("lightValue", fields.light);
+  setMetric("heroTemperature", fields.temperature, "°C", 1);
+  setMetric("heroHumidity", fields.humidity, "%");
+  $("heroPressure").textContent = fields.pressure === null ? "—" : formatted(fields.pressure, 1);
+
+  const raining = fields.rain === null ? null : fields.rain === 1;
+  const fanOn = fields.fan === null ? null : fields.fan === 1;
+  const ledOn = fields.led === null ? null : fields.led === 1;
+  const roofOpen = fields.roofOpen === null ? null : fields.roofOpen === 1;
+
+  $("heroRain").textContent = raining === null ? "—" : raining ? "Észlelve" : "Nem észlelhető";
+  setStateBadge("rainStatus", raining === null ? "Nincs adat" : raining ? "Esőt érzékel" : "Nem esik", raining === null ? "pending" : raining ? "warning" : "on");
+  setStateBadge("fanStatus", fanOn === null ? "Nincs adat" : fanOn ? "Bekapcsolva" : "Kikapcsolva", fanOn === null ? "pending" : fanOn ? "on" : "off");
+  setStateBadge("ledStatus", ledOn === null ? "Nincs adat" : ledOn ? "Bekapcsolva" : "Kikapcsolva", ledOn === null ? "pending" : ledOn ? "on" : "off");
+  setStateBadge("roofStatus", roofOpen === null ? "Nincs adat" : roofOpen ? "Nyitva" : "Zárva", roofOpen === null ? "pending" : roofOpen ? "warning" : "on");
+
+  const date = entry.created_at ? new Date(entry.created_at) : null;
+  const ageSeconds = date && !Number.isNaN(date.valueOf())
+    ? Math.max(0, Math.floor((Date.now() - date.valueOf()) / 1000))
+    : null;
+  const isStale = ageSeconds !== null && ageSeconds > 120;
+  $("lastUpdated").textContent = date && !Number.isNaN(date.valueOf())
+    ? `Utoljára frissítve: ${date.toLocaleString("hu-HU")}`
+    : "A ThingSpeak nem adott meg mérési időpontot.";
+  $("connectionStatus").textContent = isStale ? "Régi mérés" : "Kapcsolódva";
+  $("connectionStatus").className = `connection-pill ${isStale ? "stale" : "connected"}`;
+}
+
+async function loadLatestReadings({ quiet = false } = {}) {
+  const button = $("refreshDataBtn");
+  if (button) button.disabled = true;
+  if (!quiet && !state.lastEntry) $("connectionStatus").textContent = "Kapcsolódás…";
+  try {
+    const response = await fetch("/api/thingspeak?results=60", { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || ("ThingSpeak válasza: " + response.status));
+    const feeds = Array.isArray(data.feeds) ? data.feeds : [];
+    const entry = feeds.at(-1);
+    if (!entry || !entry.created_at) throw new Error("A csatornából nem érkezett mérési adat.");
+    renderReadings(entry);
+    renderThingSpeakCharts(feeds);
+  } catch (error) {
+    $("connectionStatus").textContent = "Nem elérhető";
+    $("connectionStatus").className = "connection-pill disconnected";
+    if (!state.lastEntry) $("lastUpdated").textContent = "Nem sikerült csatlakozni a ThingSpeak csatornához.";
+    if (!quiet) addChatMessage("Rendszer", error.message || "Nem sikerült adatot betölteni a ThingSpeak csatornából.", "system");
+    console.error("ThingSpeak read failed:", error);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function setWeatherStatus(message, isError = false) {
+  const status = $("weatherStatus");
+  status.textContent = message;
+  status.classList.toggle("weather-error", isError);
+}
+
+function weatherNumber(value, digits = 0) {
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? new Intl.NumberFormat("hu-HU", { maximumFractionDigits: digits, minimumFractionDigits: digits }).format(number)
+    : "—";
+}
+
+async function loadCurrentWeather(latitude, longitude, placeName) {
+  setWeatherStatus("Időjárási adatok lekérése…");
+  const params = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    current: "temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,precipitation",
+    temperature_unit: "celsius",
+    wind_speed_unit: "kmh",
+    timezone: "auto"
+  });
+  const response = await fetch("https://api.open-meteo.com/v1/forecast?" + params.toString(), { cache: "no-store" });
+  if (!response.ok) throw new Error("Az időjárási szolgáltatás nem érhető el (" + response.status + ").");
+  const data = await response.json();
+  const current = data.current;
+  if (!current || !Number.isFinite(Number(current.temperature_2m))) {
+    throw new Error("Nem érkezett aktuális hőmérsékleti adat ehhez a helyhez.");
+  }
+
+  $("weatherPlace").textContent = placeName;
+  $("weatherTemperature").textContent = weatherNumber(current.temperature_2m, 1);
+  $("weatherFeelsLike").textContent = weatherNumber(current.apparent_temperature, 1) + " °C";
+  $("weatherHumidity").textContent = weatherNumber(current.relative_humidity_2m) + " %";
+  $("weatherWind").textContent = weatherNumber(current.wind_speed_10m, 1) + " km/h";
+  $("weatherPrecipitation").textContent = weatherNumber(current.precipitation, 1) + " mm";
+  const updatedAt = current.time ? new Date(current.time) : null;
+  $("weatherUpdated").textContent = updatedAt && !Number.isNaN(updatedAt.valueOf())
+    ? "Modelladat időpontja: " + new Intl.DateTimeFormat("hu-HU", { dateStyle: "short", timeStyle: "short" }).format(updatedAt)
+    : "";
+  $("weatherResult").hidden = false;
+  setWeatherStatus("Sikeresen betöltve.");
+}
+
+async function searchWeatherByCity(event) {
+  event.preventDefault();
+  const query = $("weatherLocationInput").value.trim();
+  if (query.length < 2) {
+    setWeatherStatus("Adj meg legalább két karaktert a település nevéből.", true);
+    return;
+  }
+
+  const button = $("weatherSearchBtn");
+  button.disabled = true;
+  try {
+    setWeatherStatus("Település keresése…");
+    const params = new URLSearchParams({ name: query, count: "5", language: "hu", format: "json" });
+    const response = await fetch("https://geocoding-api.open-meteo.com/v1/search?" + params.toString(), { cache: "no-store" });
+    if (!response.ok) throw new Error("A településkereső nem érhető el.");
+    const data = await response.json();
+    const place = data.results?.[0];
+    if (!place) throw new Error("Nem találtam ilyen települést. Próbáld meg ország megadásával, például: Szolnok, Magyarország.");
+    const placeName = [place.name, place.admin1, place.country].filter((value, index, values) => value && values.indexOf(value) === index).join(", ");
+    await loadCurrentWeather(place.latitude, place.longitude, placeName);
+  } catch (error) {
+    setWeatherStatus(error.message || "Nem sikerült betölteni az időjárást.", true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function useCurrentLocation() {
+  const button = $("useMyLocationBtn");
+  if (!navigator.geolocation) {
+    setWeatherStatus("Ez a böngésző nem támogatja a helymeghatározást.", true);
+    return;
+  }
+
+  button.disabled = true;
+  setWeatherStatus("Helymeghatározás folyamatban. A böngésző engedélykérést jeleníthet meg.");
+  navigator.geolocation.getCurrentPosition(async (position) => {
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
+    const placeName = "Saját helyzet (" + latitude.toFixed(2) + ", " + longitude.toFixed(2) + ")";
     try {
-        const response = await fetch("/api/chat", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                message: userMessage,
-                sensorContext: getSensorContext()
-            })
-        });
-
-        const data = await response.json();
-
-        const botMessages = document.querySelectorAll(".bot-message");
-        const lastBotMessage = botMessages[botMessages.length - 1];
-
-        if (!response.ok) {
-            lastBotMessage.innerHTML = `
-                <strong>Assistant:</strong>
-                <p>Sorry, the AI request failed.</p>
-            `;
-            addLog("AI chat request failed.");
-            return;
-        }
-
-        lastBotMessage.innerHTML = `
-            <strong>Assistant:</strong>
-            <p>${data.reply}</p>
-        `;
-
-        addLog("AI chat response received.");
+      await loadCurrentWeather(latitude, longitude, placeName);
     } catch (error) {
-        const botMessages = document.querySelectorAll(".bot-message");
-        const lastBotMessage = botMessages[botMessages.length - 1];
-
-        if (lastBotMessage) {
-            lastBotMessage.innerHTML = `
-                <strong>Assistant:</strong>
-                <p>Could not connect to the AI server.</p>
-            `;
-        }
-
-        addLog("AI chat server connection failed.");
+      setWeatherStatus(error.message || "Nem sikerült betölteni az időjárást.", true);
+    } finally {
+      button.disabled = false;
     }
+  }, (error) => {
+    const messages = {
+      1: "A helymeghatározási engedélyt elutasítottad. Engedélyezd a böngésző címsorában, vagy írj be egy települést.",
+      2: "A készülék helyzete most nem állapítható meg. Próbáld meg később vagy írj be egy települést.",
+      3: "A helymeghatározás túllépte az időkorlátot. Próbáld újra vagy írj be egy települést."
+    };
+    setWeatherStatus(messages[error.code] || "Nem sikerült meghatározni a helyzeted.", true);
+    button.disabled = false;
+  }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
 }
 
-/* ===== Devices ===== */
+function setupWeather() {
+  $("weatherForm").addEventListener("submit", searchWeatherByCity);
+  $("useMyLocationBtn").addEventListener("click", useCurrentLocation);
+}
 
-function renderDeviceList() {
-    if (!deviceList) {
-        return;
-    }
+function sensorContext() {
+  if (!state.readings) return { status: "Még nincs betöltött mérési adat." };
+  const measuredAt = state.lastEntry?.created_at ? new Date(state.lastEntry.created_at) : null;
+  const ageSeconds = measuredAt && !Number.isNaN(measuredAt.valueOf())
+    ? Math.max(0, Math.floor((Date.now() - measuredAt.valueOf()) / 1000))
+    : null;
+  return {
+    measured_at: state.lastEntry?.created_at ?? null,
+    data_age_seconds: ageSeconds,
+    data_is_stale: ageSeconds !== null && ageSeconds > 120,
+    temperature_c: state.readings.temperature,
+    relative_humidity_percent: state.readings.humidity,
+    air_pressure: state.readings.pressure,
+    illuminance_lux: state.readings.light,
+    rain_detected: state.readings.rain === null ? null : state.readings.rain === 1,
+    fan_on: state.readings.fan === null ? null : state.readings.fan === 1,
+    led_on: state.readings.led === null ? null : state.readings.led === 1,
+    roof_open: state.readings.roofOpen === null ? null : state.readings.roofOpen === 1,
+    note: "ThingSpeak mezők: field1 hőmérséklet (°C), field2 páratartalom (%), field3 légnyomás (a firmware egysége nincs megadva), field4 megvilágítás (lux), field5 eső (1/0), field6 ventilátor (1/0), field7 LED (1/0), field8 tető (1/0)."
+  };
+}
 
-    deviceList.innerHTML = "";
+async function submitChat(event) {
+  event.preventDefault();
+  const input = $("chatInput");
+  const message = input.value.trim();
+  if (!message) return;
 
-    if (appState.devices.length === 0) {
-        deviceList.innerHTML = "<li>No devices added yet.</li>";
-        return;
-    }
+  addChatMessage("Te", message, "user");
+  input.value = "";
 
-    appState.devices.forEach((device) => {
-        const item = document.createElement("li");
-        item.className = "device-list-item";
+  if (isSimpleGreeting(message)) {
+    addChatMessage("Növényházi asszisztens", "Szia! Miben segíthetek a növényházzal kapcsolatban?", "bot");
+    return;
+  }
 
-        item.innerHTML = `
-            <div>
-                <strong>${device.name}</strong>
-                <span>${device.type}</span>
-            </div>
-            <span>Active</span>
-        `;
+  const reply = addChatMessage("Növényházi asszisztens", "Gondolkodom…", "bot");
+  $("sendChatBtn").disabled = true;
 
-        deviceList.appendChild(item);
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, sensorContext: sensorContext() })
     });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Az AI-kérés nem sikerült.");
+    reply.textContent = cleanAssistantReply(data.reply || "Nem érkezett válasz.");
+  } catch (error) {
+    reply.textContent = error.message || "Az asszisztens most nem érhető el. Ellenőrizd a szerver AI-beállításait, majd próbáld újra.";
+    console.error("AI chat failed:", error);
+  } finally {
+    $("sendChatBtn").disabled = false;
+    input.focus();
+  }
 }
-
-function addDevice(event) {
-    event.preventDefault();
-
-    const name = deviceNameInput.value.trim();
-    const type = deviceTypeInput.value;
-
-    if (name === "") {
-        addLog("Device name is required.");
-        return;
-    }
-
-    appState.devices.push({
-        name,
-        type
-    });
-
-    localStorage.setItem("smartHomeDevices", JSON.stringify(appState.devices));
-
-    deviceNameInput.value = "";
-    deviceTypeInput.value = "Light";
-
-    renderDeviceList();
-    addLog(`New device added: ${name}.`);
-}
-
-/* ===== Theme / Navigation ===== */
 
 function setupTheme() {
-    const storedTheme = localStorage.getItem("smart-home-theme");
-
-    if (storedTheme === "dark") {
-        document.body.classList.add("dark");
-    }
-
-    if (!elements.themeToggle) {
-        return;
-    }
-
-    elements.themeToggle.addEventListener("click", () => {
-        document.body.classList.toggle("dark");
-
-        const theme = document.body.classList.contains("dark") ? "dark" : "light";
-        localStorage.setItem("smart-home-theme", theme);
-    });
+  const savedTheme = localStorage.getItem("greenhouse-theme");
+  const themeToggle = $("themeToggle");
+  if (savedTheme === "dark") document.body.classList.add("dark");
+  const updateThemeState = () => {
+    themeToggle.setAttribute("aria-pressed", String(document.body.classList.contains("dark")));
+  };
+  updateThemeState();
+  themeToggle.addEventListener("click", () => {
+    document.body.classList.toggle("dark");
+    localStorage.setItem("greenhouse-theme", document.body.classList.contains("dark") ? "dark" : "light");
+    updateThemeState();
+  });
 }
 
 function setupNavigation() {
-    if (!menuToggle || !navLinks) {
-        return;
-    }
-
-    menuToggle.addEventListener("click", () => {
-        const isOpen = navLinks.classList.toggle("open");
-        menuToggle.setAttribute("aria-expanded", String(isOpen));
-    });
-
-    const navItems = navLinks.querySelectorAll("a");
-
-    navItems.forEach((item) => {
-        item.addEventListener("click", () => {
-            navLinks.classList.remove("open");
-            menuToggle.setAttribute("aria-expanded", "false");
-        });
-    });
+  const menuButton = $("menuToggle");
+  const navLinks = $("navLinks");
+  menuButton.addEventListener("click", () => {
+    const isOpen = navLinks.classList.toggle("open");
+    menuButton.setAttribute("aria-expanded", String(isOpen));
+  });
+  navLinks.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => {
+    navLinks.classList.remove("open");
+    menuButton.setAttribute("aria-expanded", "false");
+  }));
 }
-
-/* ===== Init ===== */
 
 function init() {
-    setupTheme();
-    setupNavigation();
-
-    if (loginBtn) {
-        loginBtn.addEventListener("click", loginUser);
-    }
-
-    if (logoutBtn) {
-        logoutBtn.addEventListener("click", logoutUser);
-    }
-
-    if (passwordInput) {
-        passwordInput.addEventListener("keydown", (event) => {
-            if (event.key === "Enter") {
-                loginUser();
-            }
-        });
-    }
-
-    if (temperatureSlider) {
-        temperatureSlider.addEventListener("input", updateSensorValues);
-    }
-
-    if (humiditySlider) {
-        humiditySlider.addEventListener("input", updateSensorValues);
-    }
-
-    if (airQualitySlider) {
-        airQualitySlider.addEventListener("input", updateSensorValues);
-    }
-
-    if (energySlider) {
-        energySlider.addEventListener("input", updateSensorValues);
-    }
-
-    if (loadSensorDataBtn) {
-        loadSensorDataBtn.addEventListener("click", loadSensorDataFromApi);
-    }
-
-    if (runAutomationBtn) {
-        runAutomationBtn.addEventListener("click", runSmartHomeAutomation);
-    }
-
-    if (weatherBtn) {
-        weatherBtn.addEventListener("click", getWeather);
-    }
-
-    if (sendChatBtn) {
-        sendChatBtn.addEventListener("click", sendChatMessage);
-    }
-
-    if (chatInput) {
-        chatInput.addEventListener("keydown", (event) => {
-            if (event.key === "Enter") {
-                sendChatMessage();
-            }
-        });
-    }
-
-    if (addDeviceForm) {
-        addDeviceForm.addEventListener("submit", addDevice);
-    }
-
-    updateAuthView();
-    updateSensorValues();
-    renderDeviceList();
-
-    if (appState.user) {
-        addLog("Smart Home Monitoring System started.");
-    }
+  setupTheme();
+  setupWeather();
+  setupNavigation();
+  $("refreshDataBtn").addEventListener("click", () => loadLatestReadings());
+  $("chatForm").addEventListener("submit", submitChat);
+  addChatMessage("Növényházi asszisztens", "Szia! A legutóbb betöltött növényházi mérések alapján tudok segíteni.", "bot");
+  loadLatestReadings();
+  state.refreshTimer = window.setInterval(() => loadLatestReadings({ quiet: true }), REFRESH_INTERVAL_MS);
 }
 
-init();
+document.addEventListener("DOMContentLoaded", init);
