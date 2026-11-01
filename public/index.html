@@ -13,6 +13,32 @@
   <link rel="stylesheet" href="flet-gallery-controls.css">
 </head>
 <body>
+  <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
+    <div class="login-card card">
+      <div class="login-brand">
+        <span class="logo-icon material-symbols-rounded" aria-hidden="true">eco</span>
+        <span>Okos Növényház</span>
+      </div>
+      <p class="eyebrow">Privát felügyeleti felület</p>
+      <h1 id="loginTitle">Bejelentkezés</h1>
+      <p class="muted">A növényház adatainak megtekintéséhez jelentkezz be.</p>
+      <form id="loginForm" class="login-form">
+        <label for="loginUsername">Felhasználónév</label>
+        <input id="loginUsername" name="username" type="text" autocomplete="username" required>
+        <label for="loginPassword">Jelszó</label>
+        <div class="password-field">
+          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+          <button class="password-visibility" id="passwordVisibilityBtn" type="button" aria-label="Jelszó megjelenítése" aria-pressed="false">
+            <span class="material-symbols-rounded" aria-hidden="true">visibility</span>
+          </button>
+        </div>
+        <button class="button primary" id="loginSubmit" type="submit">Belépés</button>
+        <p class="login-message" id="loginMessage" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </section>
+
+  <div id="appShell" hidden>
   <header class="site-header">
     <nav class="navbar" aria-label="Fő navigáció">
       <a class="logo" href="#home" aria-label="Okos Növényház kezdőlap">
@@ -26,6 +52,7 @@
         <li><a href="#automationSection">Működés</a></li>
         <li><a href="#chatSection">AI-asszisztens</a></li>
         <li><a href="#thingspeak">Mérési előzmények</a></li>
+        <li><button class="nav-logout" id="logoutBtn" type="button">Kijelentkezés</button></li>
       </ul>
       <button class="theme-toggle theme-toggle-icon" id="themeToggle" type="button" aria-label="Téma váltása" aria-pressed="false" title="Téma váltása">
         <span class="material-symbols-rounded" aria-hidden="true">dark_mode</span>
@@ -155,6 +182,7 @@
   </main>
 
   <footer class="site-footer"><p>IoT-alapú okos növényház · ESP32 · ThingSpeak</p></footer>
+  </div>
   <script src="config.js" defer></script>
   <script src="script.js" defer></script>
 </body>

@@ -852,7 +852,7 @@ function setupChartControls() {
 }
 
 // Beállítjuk a felület gombjait, majd elindítjuk az adatok frissítését.
-function init() {
+function initializeDashboard() {
   setupTheme();
   setupWeather();
   setupNavigation();
@@ -870,4 +870,77 @@ function init() {
   state.chartRefreshTimer = window.setInterval(() => loadChartHistory({ quiet: true }), CHART_REFRESH_INTERVAL_MS);
 }
 
-document.addEventListener("DOMContentLoaded", init);
+function showDashboard() {
+  $("loginScreen").hidden = true;
+  $("appShell").hidden = false;
+  initializeDashboard();
+}
+
+function setLoginMessage(message) {
+  $("loginMessage").textContent = message;
+}
+
+async function checkLogin() {
+  const response = await fetch("/api/auth", { cache: "no-store" });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || "Nem sikerült ellenőrizni a bejelentkezést.");
+  if (result.authenticated) showDashboard();
+}
+
+function setupAuthentication() {
+  const loginForm = $("loginForm");
+  const loginButton = $("loginSubmit");
+  const passwordInput = $("loginPassword");
+  const passwordVisibilityButton = $("passwordVisibilityBtn");
+
+  passwordVisibilityButton.addEventListener("click", () => {
+    const showPassword = passwordInput.type === "password";
+    passwordInput.type = showPassword ? "text" : "password";
+    passwordVisibilityButton.setAttribute("aria-pressed", String(showPassword));
+    passwordVisibilityButton.setAttribute(
+      "aria-label",
+      showPassword ? "Jelszó elrejtése" : "Jelszó megjelenítése"
+    );
+    passwordVisibilityButton.querySelector(".material-symbols-rounded").textContent =
+      showPassword ? "visibility_off" : "visibility";
+  });
+
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setLoginMessage("");
+    loginButton.disabled = true;
+
+    try {
+      const response = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: $("loginUsername").value,
+          password: $("loginPassword").value
+        })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Nem sikerült bejelentkezni.");
+      loginForm.reset();
+      showDashboard();
+    } catch (error) {
+      setLoginMessage(error.message || "Nem sikerült bejelentkezni.");
+    } finally {
+      loginButton.disabled = false;
+    }
+  });
+
+  $("logoutBtn").addEventListener("click", async () => {
+    try {
+      const response = await fetch("/api/auth", { method: "DELETE" });
+      if (!response.ok) throw new Error("Nem sikerült kijelentkezni.");
+      window.location.reload();
+    } catch (error) {
+      setLoginMessage(error.message || "Nem sikerült kijelentkezni.");
+    }
+  });
+
+  checkLogin().catch((error) => setLoginMessage(error.message));
+}
+
+document.addEventListener("DOMContentLoaded", setupAuthentication);
