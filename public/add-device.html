@@ -1,20 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hu">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Add Device | Smart Home Monitor</title>
+  <meta name="theme-color" content="#f3f6f1" />
+  <title>Eszközök kezelése | Okos Növényház</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="flet-gallery-controls.css" />
 </head>
 <body>
   <header class="site-header compact-header">
     <nav class="navbar" aria-label="Main navigation">
       <a class="logo" href="index.html" aria-label="Back to home">
         <span class="logo-icon material-symbols-rounded" aria-hidden="true">eco</span>
-        <span>Smart Home Monitor</span>
+        <span>Okos Növényház</span>
       </a>
 
       <ul class="nav-links">
@@ -45,18 +47,14 @@
 
     <section class="hero add-device-hero">
       <div>
-        <p class="eyebrow">Device management</p>
-        <h1>Add New Device</h1>
-        <p>
-          Add, edit or remove smart home devices. The data is saved locally in the browser with localStorage.
-        </p>
+        <p class="eyebrow">Eszközkezelés</p>
+        <h1>Eszközök kezelése</h1>
+        <p>Vedd fel, szerkeszd, rendezd vagy távolítsd el a növényház eszközeit.</p>
       </div>
 
       <article class="status-card">
-        <h2>Device Setup</h2>
-        <p>
-          This page simulates device registration. In a real system, this could be connected to a backend or ThingSpeak channel.
-        </p>
+        <h2>Eszközlista</h2>
+        <p>A lista ebben a böngészőben mentődik. Az átrendezés nem módosítja az ESP32 működését.</p>
       </article>
     </section>
   </header>
@@ -64,86 +62,89 @@
   <main>
     <section class="section split">
       <div class="card">
-        <p class="eyebrow">New device</p>
-        <h2>Device details</h2>
-        <p class="muted">
-          Fill in the form to add a new smart home sensor or actuator.
-        </p>
+        <p class="eyebrow">Új eszköz</p>
+        <h2>Eszköz adatai</h2>
+        <p class="muted">Add meg a nevet, a típust és a hozzá tartozó ThingSpeak-mezőt.</p>
 
         <form class="device-form" id="deviceForm">
           <input type="hidden" id="editIndex" value="" />
 
-          <label for="deviceName">Device name</label>
+          <label for="deviceName">Eszköz neve</label>
           <input
             id="deviceName"
             type="text"
-            placeholder="Example: Living room temperature sensor"
+            placeholder="Például: Hőmérséklet-érzékelő"
             required
           />
 
-          <label for="deviceType">Device type</label>
+          <label for="deviceType">Eszköz típusa</label>
           <select id="deviceType" required>
-            <option value="">Select device type</option>
-            <option value="Temperature">Temperature</option>
-            <option value="Humidity">Humidity</option>
-            <option value="Soil Moisture">Soil Moisture</option>
-            <option value="Rain">Rain</option>
-            <option value="Fan">Fan</option>
-            <option value="Air Pressure">Air Pressure</option>
-            <option value="Light">Light</option>
-            <option value="Thermostat">Thermostat</option>
-            <option value="Security">Security</option>
+            <option value="">Válassz eszköztípust</option>
+            <option value="Temperature">Hőmérséklet</option>
+            <option value="Humidity">Páratartalom</option>
+            <option value="Soil Moisture">Talajnedvesség</option>
+            <option value="Rain">Esőérzékelő</option>
+            <option value="Fan">Ventilátor</option>
+            <option value="Air Pressure">Légnyomás</option>
+            <option value="Light">Megvilágítás / LED</option>
+            <option value="Thermostat">Termosztát</option>
+            <option value="Roof">Tetőmozgatás</option>
+            <option value="Security">Egyéb eszköz</option>
           </select>
 
-          <label for="thingSpeakField">ThingSpeak field number</label>
+          <label for="thingSpeakField">ThingSpeak-mező száma</label>
           <input
             id="thingSpeakField"
             type="number"
             min="1"
             max="8"
-            placeholder="Example: 8"
+            placeholder="Például: 8"
           />
 
-          <label for="deviceLocation">Location</label>
+          <label for="deviceLocation">Eszköz vagy érzékelő neve</label>
           <input
             id="deviceLocation"
             type="text"
-            placeholder="Example: Living room"
+            placeholder="Például: BME280 vagy TSL2561"
           />
 
           <div class="button-row">
             <button class="button primary" type="submit" id="saveDeviceBtn">
-              Save device
+              Eszköz mentése
             </button>
 
             <button class="button secondary" type="button" id="cancelEditBtn">
-              Cancel edit
+              Szerkesztés megszakítása
             </button>
 
             <a class="button secondary" href="index.html#thingSpeakCharts">
-              Back to dashboard
+              Vissza az irányítópultra
             </a>
           </div>
 
-          <p id="deviceMessage" class="message"></p>
+          <p id="deviceMessage" class="message device-message" role="status" aria-live="polite"></p>
         </form>
       </div>
 
       <article class="card login-result">
-        <h3>Current devices</h3>
-        <p class="muted">
-          Saved devices are stored in localStorage.
-        </p>
+        <div class="device-list-heading">
+          <div>
+            <p class="eyebrow">Saját elrendezés</p>
+            <h3>Felvett eszközök</h3>
+          </div>
+          <span class="device-count" id="deviceCount" aria-live="polite">0 eszköz</span>
+        </div>
+        <p class="muted">Húzd a csempéket az átrendezéshez. A sorrend ebben a böngészőben mentődik.</p>
 
-        <div id="deviceList" class="device-list">
-          <p>No devices added yet.</p>
+        <div id="deviceList" class="device-list device-tile-grid" role="list" aria-label="Felvett eszközök">
+          <p class="device-empty-state">Még nincs felvett eszköz.</p>
         </div>
       </article>
     </section>
   </main>
 
   <footer class="footer">
-    <p>Created for Browser Programming course using HTML5, CSS3 and JavaScript.</p>
+    <p>Okos Növényház · Eszközkezelés</p>
   </footer>
 
   <script src="add-device.js"></script>
