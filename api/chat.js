@@ -1,5 +1,6 @@
 import { GREENHOUSE_TOOLS, runGreenhouseTool } from "./lib/greenhouse-tools.js";
 import { GREENHOUSE_INSTRUCTIONS, GREENHOUSE_MODEL } from "./lib/greenhouse-prompt.js";
+import { requireAuthentication } from "./lib/auth.js";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const MAX_TOOL_ROUNDS = 4;
@@ -255,6 +256,8 @@ function userFacingError(error) {
 }
 
 export default async function handler(req, res) {
+  if (!requireAuthentication(req, res)) return;
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed. Use POST." });
   }

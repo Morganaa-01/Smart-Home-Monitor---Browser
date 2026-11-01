@@ -450,19 +450,147 @@ button:disabled,
   padding: 1rem clamp(1rem, 4vw, 2.5rem) 0;
 }
 
+[hidden] {
+  display: none !important;
+}
+
+.login-screen {
+  display: grid;
+  min-height: 100vh;
+  min-height: 100svh;
+  place-items: center;
+  padding: clamp(1rem, 4vw, 2.5rem);
+}
+
+.login-card {
+  width: min(100%, 440px);
+  margin: 0;
+  padding: clamp(1.5rem, 5vw, 2.5rem);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 2rem;
+  color: var(--text-color);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.login-brand .logo-icon {
+  color: var(--primary-color);
+}
+
+.login-card h1 {
+  margin: 0.3rem 0 0.55rem;
+  font-size: clamp(1.8rem, 6vw, 2.3rem);
+}
+
+.login-form {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1.5rem;
+}
+
+.login-form label {
+  margin-top: 0.4rem;
+  color: var(--text-color);
+  font-weight: 700;
+}
+
+.login-form input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text-color);
+  font: inherit;
+}
+
+.login-form input:focus-visible {
+  outline: 3px solid var(--flet-control-focus-soft);
+  outline-offset: 2px;
+}
+
+.password-field {
+  position: relative;
+}
+
+.password-field input {
+  padding-right: 3.25rem;
+}
+
+.password-visibility {
+  position: absolute;
+  top: 50%;
+  right: 0.45rem;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted-color);
+  cursor: pointer;
+}
+
+.password-visibility:hover {
+  background: var(--flet-control-focus-soft);
+  color: var(--text-color);
+}
+
+.password-visibility:focus-visible {
+  outline: 3px solid var(--flet-control-focus-soft);
+  outline-offset: 2px;
+}
+
+.login-form > button {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 0.75rem;
+}
+
+.login-message {
+  min-height: 1.4rem;
+  margin: 0;
+  color: var(--danger-color);
+  font-size: 0.92rem;
+}
+
+.nav-logout {
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-color);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nav-logout:hover {
+  background: var(--flet-control-focus-soft);
+  color: var(--text-color);
+}
+
 .navbar {
   border-radius: 16px;
-  padding-right: 4rem;
+  padding-right: 1rem;
   box-shadow: 0 5px 20px rgba(23, 32, 24, 0.08);
 }
 
 #themeToggle.theme-toggle-icon {
-  position: fixed;
-  top: max(1rem, env(safe-area-inset-top, 0px));
-  right: max(1rem, env(safe-area-inset-right, 0px));
-  z-index: 100;
+  position: static;
+  margin-left: 0;
   background: var(--surface);
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--text-color) 14%, transparent);
+  box-shadow: none;
 }
 
 .greenhouse-hero {

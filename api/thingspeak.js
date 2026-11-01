@@ -1,6 +1,9 @@
 import { fetchThingSpeakFeeds, ThingSpeakError } from "./lib/thingspeak.js";
+import { requireAuthentication } from "./lib/auth.js";
 
 export default async function handler(req, res) {
+  if (!requireAuthentication(req, res)) return;
+
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed. Use GET." });
   }
