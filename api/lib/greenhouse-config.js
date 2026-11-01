@@ -1,3 +1,4 @@
+// Ezt a leírást az asszisztens használja a ThingSpeak-mezők értelmezéséhez.
 export const GREENHOUSE_CONFIG = Object.freeze({
   controller: "ESP32",
   automationLocation: "local_device",
@@ -16,9 +17,9 @@ export const GREENHOUSE_CONFIG = Object.freeze({
     { field: "field8", name: "roof", unit: null, type: "boolean_state", values: { "0": "closed", "1": "open" } }
   ],
   notes: [
-    "The greenhouse sunshine-hours estimate counts periods when consecutive TSL2561 readings are above the configured 600 lux threshold.",
-    "Sunshine hours are an approximate greenhouse light-duration measure, not an official direct-solar-radiation measurement.",
-    "Plant species and calibrated growing thresholds have not been configured.",
-    "The ESP32 runs local automation. The web app does not send control commands."
+    "A napsütéses órák becslése az egymást követő, 600 lux feletti TSL2561-mérések közötti időt számolja.",
+    "Ez a növényház megvilágításának közelítő időtartama, nem hivatalos napsugárzási mérés.",
+    "Növényfajta és kalibrált termesztési határérték nincs beállítva.",
+    "Az automatika helyben, az ESP32-n fut. A weboldal nem küld vezérlőparancsot."
   ]
 });

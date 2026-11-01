@@ -768,6 +768,7 @@ async function searchWeatherByCity(event) {
   }
 }
 
+// Ezek az állapotok kezelik a gépelés közbeni javaslatlistát és a billentyűzetes választást.
 // Gépelés után röviden várunk a javaslatok lekérésével, így nem küldünk kérést minden billentyűre.
 let weatherSuggestionTimer;
 let weatherSuggestionRequest = 0;
@@ -852,6 +853,7 @@ function handleWeatherLocationInput(event) {
   weatherSelectedPlace = null;
   weatherSelectedQuery = "";
   clearTimeout(weatherSuggestionTimer);
+  // A régebbi kérések eredményét eldobjuk, ha közben újabb keresés indult.
   weatherSuggestionRequest += 1;
   closeWeatherSuggestions();
   if (query.length < 2) return;
@@ -930,6 +932,7 @@ function useCurrentLocation() {
 }
 
 function setupWeather() {
+  // A keresőmező, a billentyűzet és a helymeghatározó gomb eseményeit kapcsoljuk össze.
   $("weatherForm").addEventListener("submit", searchWeatherByCity);
   $("weatherLocationInput").addEventListener("input", handleWeatherLocationInput);
   $("weatherLocationInput").addEventListener("keydown", handleWeatherLocationKeydown);
@@ -1002,6 +1005,7 @@ async function submitChat(event) {
 // ------------------------- Felület indítása --------------------------------
 
 function setupTheme() {
+  // A választott témát a böngésző megjegyzi, hogy oldalváltás után se álljon vissza.
   const savedTheme = localStorage.getItem("greenhouse-theme");
   const themeToggle = $("themeToggle");
   if (savedTheme === "dark") document.body.classList.add("dark");
@@ -1124,6 +1128,7 @@ function initializeDashboard() {
 }
 
 function setupSummaryEditor() {
+  // A felső ThingSpeak-kártya sorainak sorrendjét és láthatóságát kezeljük.
   const toggle = $("summarySettingsToggle");
   const panel = $("summarySettings");
   const list = $("summaryConfigList");
@@ -1293,6 +1298,7 @@ function setupSummaryEditor() {
 }
 
 function setupMetricEditor() {
+  // Ugyanígy lehet rendezni, elrejteni és visszatenni a környezeti mérőkártyákat.
   const grid = document.querySelector(".greenhouse-grid");
   const list = $("metricConfigList");
   const select = $("metricRowSelect");
@@ -1442,6 +1448,7 @@ function setupMetricEditor() {
 }
 
 function setupChartEditor() {
+  // A kiválasztott grafikonmezőket elmentjük, az üres helyekről pedig új mező adható hozzá.
   const grid = $("chartGrid");
   if (!grid) return;
 

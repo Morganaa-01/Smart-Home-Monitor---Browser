@@ -122,6 +122,7 @@ function numericValue(value) {
 }
 
 function latestFeed(data) {
+  // A ThingSpeak-sor rövid field neveit itt beszédes nevekhez rendeljük az asszisztensnek.
   const feed = data.feeds.at(-1);
   if (!feed) {
     const error = new Error("A ThingSpeak-csatornában még nincs mérési adat.");
@@ -167,6 +168,7 @@ function downsample(feeds, field) {
 }
 
 function summarizeField(feeds, field) {
+  // A hiányzó mező kimarad, a 0 viszont érvényes mérési érték marad.
   const values = feeds
     .map((feed) => ({ recorded_at: feed.created_at, value: numericValue(feed[field]) }))
     .filter((sample) => sample.recorded_at && sample.value !== null);
@@ -260,6 +262,7 @@ function summarizeLastActiveEvent(feeds, field) {
 }
 
 function calculateSunlightHours(feeds) {
+  // Csak két egymást követő, 600 lux fölötti minta közötti időt számítjuk megvilágítottnak.
   const lightReadings = feeds
     .map((feed) => ({ timestamp: Date.parse(feed.created_at), value: numericValue(feed.field4) }))
     .filter((reading) => Number.isFinite(reading.timestamp) && reading.value !== null)
@@ -319,6 +322,7 @@ async function getLatestSensorData() {
 }
 
 async function getSensorHistory(args) {
+  // A naptári napokra bontást Budapest helyi ideje szerint végezzük.
   if (!HISTORY_FIELDS.includes(args.field)) {
     throw new Error("A kért ThingSpeak mező nem érvényes.");
   }
@@ -347,7 +351,7 @@ async function getSensorHistory(args) {
     start: formatThingSpeakDate(start),
     end: formatThingSpeakDate(end)
   });
-  // ThingSpeak may include a feed exactly at the requested end timestamp.
+  // A záró időpontot kizárjuk, hogy a szomszédos időszakokban ne duplázódjon egy minta.
   const feeds = data.feeds.filter((feed) => {
     const timestamp = Date.parse(feed.created_at);
     return Number.isFinite(timestamp) && timestamp >= start.getTime() && timestamp < end.getTime();

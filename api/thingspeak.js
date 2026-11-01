@@ -55,6 +55,7 @@ function parseBudapestDateTime(value) {
 }
 
 export default async function handler(req, res) {
+  // A mérési előzményeket csak bejelentkezett felhasználó kérheti le.
   if (!requireAuthentication(req, res)) return;
 
   if (req.method !== "GET") {
@@ -62,23 +63,21 @@ export default async function handler(req, res) {
   }
 
   // Ellenőrizzük a lekérdezés paramétereit, hogy hibás időszaknál érthető választ adjunk.
+  // Háromféle időszakot támogatunk: utolsó minták, utolsó napok vagy egyedi dátumhatárok.
   const hasDays = req.query?.days !== undefined;
   const hasStart = req.query?.start !== undefined;
   const hasEnd = req.query?.end !== undefined;
   const hasCustomRange = hasStart || hasEnd;
-  const requestedPeriod = req.query?.period;
   const requestedDays = Number(req.query?.days);
   const requestedResults = Number(req.query?.results ?? 60);
   const days = Number.isInteger(requestedDays) && requestedDays >= 1 && requestedDays <= 365
     ? requestedDays
     : null;
   const results = Number.isInteger(requestedResults) ? requestedResults : 60;
-  const isSeptemberDemoPeriod = requestedPeriod === "september-demo-2026";
 
-  if (requestedPeriod !== undefined && !isSeptemberDemoPeriod) {
+  if (req.query?.period !== undefined) {
     return res.status(400).json({ error: "Ismeretlen ThingSpeak grafikon-időszak." });
   }
-
   if (hasDays && days === null) {
     return res.status(400).json({ error: "A days értéke 1 és 365 közötti egész szám legyen." });
   }
@@ -89,7 +88,7 @@ export default async function handler(req, res) {
     customStart = parseBudapestDateTime(req.query.start);
     customEnd = parseBudapestDateTime(req.query.end);
     if (!hasStart || !hasEnd || !customStart || !customEnd || customStart >= customEnd
-      || hasDays || requestedPeriod !== undefined || req.query?.results !== undefined) {
+      || hasDays || req.query?.period !== undefined || req.query?.results !== undefined) {
       return res.status(400).json({
         error: "Adj meg érvényes kezdő és záró időpontot Budapest helyi ideje szerint. A záró időpont legyen későbbi."
       });
@@ -101,13 +100,11 @@ export default async function handler(req, res) {
 
   try {
     const data = await fetchThingSpeakFeeds(
-      isSeptemberDemoPeriod
-        ? { start: "2026-08-31T22:00:00Z", end: "2026-09-30T21:50:00Z" }
-        : hasCustomRange
-          ? { start: customStart.toISOString(), end: customEnd.toISOString() }
-          : hasDays
-            ? { days }
-            : { results }
+      hasCustomRange
+        ? { start: customStart.toISOString(), end: customEnd.toISOString() }
+        : hasDays
+          ? { days }
+          : { results }
     );
     return res.status(200).json(data);
   } catch (error) {
