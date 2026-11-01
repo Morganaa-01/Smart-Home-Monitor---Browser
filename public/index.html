@@ -75,6 +75,7 @@
           <a class="button secondary" href="#chatSection">Kérdés az asszisztenshez</a>
         </div>
       </div>
+      <!-- A felső adatcsomag és a fogaskerékről nyitható megjelenítési beállítások. -->
       <article class="status-card latest-card" aria-live="polite">
         <div class="card-heading-row">
           <div><p class="eyebrow">ThingSpeak</p><h2>Legutóbbi adatcsomag</h2></div>
@@ -119,6 +120,7 @@
     </section>
     <p class="muted section-intro">Az értékeket az ESP32 tölti fel a ThingSpeak csatornára. A felület 30 másodpercenként frissül.</p>
 
+    <!-- Ezek a beállítások ugyanarról a fogaskerékről nyílnak, mint a felső adatcsomag szerkesztése. -->
     <section class="display-editor-panel" id="metricSettings" aria-label="Környezeti mérőkártyák szerkesztése" hidden>
       <div class="display-editor-heading">
         <div><p class="eyebrow">Főoldali megjelenés</p><h3>Környezeti mérőkártyák</h3></div>
@@ -132,6 +134,7 @@
       </div>
     </section>
 
+    <!-- A további mérő- és állapotkártyák alapból rejtve vannak, de a szerkesztőből hozzáadhatók. -->
     <section class="dashboard-grid greenhouse-grid" aria-label="Legutóbbi szenzoradatok">
       <article class="card sensor-card" data-metric-card="temperature"><span class="metric-icon material-symbols-rounded" aria-hidden="true">device_thermostat</span><p class="metric-label">Hőmérséklet</p><p class="value"><span id="temperatureValue">—</span><span class="unit">°C</span></p><p class="metric-detail">BME280 érzékelő</p></article>
       <article class="card sensor-card" data-metric-card="humidity"><span class="metric-icon material-symbols-rounded" aria-hidden="true">water_drop</span><p class="metric-label">Relatív páratartalom</p><p class="value"><span id="humidityValue">—</span><span class="unit">%</span></p><p class="metric-detail">BME280 érzékelő</p></article>
@@ -197,6 +200,7 @@
       <p class="chat-disclaimer">A javaslat tájékoztató jellegű; a beavatkozókat az asszisztens nem vezérli.</p>
     </section>
 
+    <!-- A grafikonokat a ThingSpeak mezőiből rajzolja ki a script.js. -->
     <section class="section" id="thingspeak">
       <div class="section-heading"><div><p class="eyebrow">ThingSpeak · ESP32</p><h2>Mérési előzmények</h2><p class="muted">A grafikonok a firmware jelenlegi mezőkiosztását követik.</p></div></div>
       <div class="chart-toolbar" aria-label="Grafikon beállításai">
@@ -266,7 +270,6 @@
 
   <footer class="site-footer"><p>IoT-alapú okos növényház · ESP32 · ThingSpeak</p></footer>
   </div>
-  <script src="config.js" defer></script>
   <script src="script.js" defer></script>
 </body>
 </html>

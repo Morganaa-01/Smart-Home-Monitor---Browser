@@ -6,6 +6,7 @@ const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const MAX_TOOL_ROUNDS = 4;
 
 async function fetchOpenAIWithRetry(apiKey, body) {
+  // Átmeneti hálózati hiba esetén egyszer próbálkozunk újra.
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       return await fetch(OPENAI_RESPONSES_URL, {
@@ -29,6 +30,7 @@ async function fetchOpenAIWithRetry(apiKey, body) {
 }
 
 function isHistoricalDataQuestion(message) {
+  // Előzménykérdésnél előre lekérjük a ThingSpeak-adatokat, hogy az AI ne becsülje meg őket.
   if (isLastRainQuestion(message)) return true;
   if (extractBudapestDates(message).length > 0) return true;
   const asksAboutTime = /tegnap\w*|tegnapelőtt\w*|ma\w*|elmúlt\w*|utolsó\w*|trend\w*|átlag\w*|minimum\w*|maximum\w*|változás\w*|összehasonlít\w*|időbeli\w*/i.test(message);
@@ -42,6 +44,7 @@ function isLastRainQuestion(message) {
 }
 
 export function extractBudapestDates(message) {
+  // A kérdésben megadott magyar hónapnevekből konkrét budapesti naptári napokat készítünk.
   const normalized = message.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
   const monthNumbers = {
     januar: "01", februar: "02", marcius: "03", aprilis: "04", majus: "05", junius: "06",
@@ -62,6 +65,7 @@ export function extractBudapestDates(message) {
 }
 
 async function getRequestedDaySummaries(dates) {
+  // Minden megnevezett napra külön kérdezünk le, köztes napokat nem veszünk bele.
   const days = await Promise.all(dates.map(async (date) => {
     const result = await runGreenhouseTool("get_sensor_history", {
       hours: null,
@@ -117,15 +121,14 @@ async function getLastRainSummary() {
 
 function formatLastRainReply(summary) {
   if (!summary.total_samples) {
-    return "A lekért előzményidőszakban nincs esőérzékelő-adat.";
+    return "A lekért időszakban nincs esőérzékelő-adat.";
   }
   if (!summary.last_active_at_budapest) {
-    return "A lekért előzményidőszakban az esőérzékelő nem rögzített aktív jelzést.";
+    return "A lekért időszakban az érzékelő nem jelzett esőt.";
   }
 
   const formatDateTime = (timestamp) => new Intl.DateTimeFormat("hu-HU", {
     timeZone: "Europe/Budapest",
-    year: "numeric",
     month: "long",
     day: "numeric",
     hour: "2-digit",
@@ -134,20 +137,28 @@ function formatLastRainReply(summary) {
   }).format(new Date(timestamp));
   const event = summary.last_active_event;
   if (!event) {
-    return `Az esőérzékelő legutóbb ${formatDateTime(summary.last_active_at_budapest)}-kor jelzett. A mező csak eső/nincs eső állapotot tárol, ezért a csapadék mennyisége milliméterben nem állapítható meg.`;
+    return "Az érzékelő legutóbb " + formatDateTime(summary.last_active_at_budapest) + "-kor jelzett esőt. A csapadék mennyiségét nem méri.";
   }
 
-  const durationMinutes = event.estimated_duration_seconds / 60;
-  const durationText = durationMinutes < 1
-    ? `körülbelül ${Math.max(1, Math.round(event.estimated_duration_seconds))} másodpercig`
-    : `körülbelül ${new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 1 }).format(durationMinutes)} percig`;
-  const durationDescription = event.is_active_at_end
-    ? `eddig ${durationText} tart (becslés)`
-    : `${durationText} tartott (becslés)`;
-  return `Az esőérzékelő legutóbbi aktív időszaka ${formatDateTime(event.started_at_budapest)}-kor kezdődött; az utolsó aktív minta ${formatDateTime(event.last_active_at_budapest)}-kor érkezett. A jelzés ${durationDescription} ${event.active_samples} ThingSpeak-minta alapján, budapesti idő szerint. A field5 csak esik/nem esik állapotot rögzít, ezért a csapadék mennyisége milliméterben nem állapítható meg.`;
+  const durationMinutes = Math.max(1, Math.round((Date.parse(event.last_active_at_budapest) - Date.parse(event.started_at_budapest)) / 60000));
+  const days = Math.floor(durationMinutes / 1440);
+  const hours = Math.floor((durationMinutes % 1440) / 60);
+  const minutes = durationMinutes % 60;
+  const duration = [
+    days ? days + " nap" : "",
+    hours ? hours + " óra" : "",
+    minutes ? minutes + " perc" : ""
+  ].filter(Boolean).join(" ");
+  const startTime = formatDateTime(event.started_at_budapest);
+  const endTime = formatDateTime(event.last_active_at_budapest);
+  if (event.is_active_at_end) {
+    return "Az érzékelő " + startTime + " óta jelez esőt (eddig körülbelül " + duration + "). A csapadék mennyiségét nem méri.";
+  }
+  return "Az érzékelő " + startTime + " és " + endTime + " között jelzett esőt, körülbelül " + duration + " hosszan. A csapadék mennyiségét nem méri.";
 }
 
 function buildUserInput(message, sensorContext, historyResult = null) {
+  // A modell a kérdés mellett megkapja a felületen látható és a külön lekért adatokat is.
   const context = JSON.stringify(sensorContext ?? {}, null, 2);
   const now = new Date();
   const budapestNow = new Intl.DateTimeFormat("hu-HU", {
@@ -164,11 +175,12 @@ function buildUserInput(message, sensorContext, historyResult = null) {
 
   return [{
     role: "user",
-    content: `A felület által utoljára betöltött szenzoradatok és eszközállapotok. Ezek az adatok elavultak lehetnek:\n${context}\n\n${history}\n${dateScope}\n\nAktuális UTC idő: ${now.toISOString()}\nAktuális helyi idő (Europe/Budapest): ${budapestNow}\n\nFelhasználói kérdés:\n${message.trim()}`
+    content: `A felület által utoljára betöltött szenzoradatok és eszközállapotok. Ezek az adatok elavultak lehetnek:\n${context}\n\n${history}\n${dateScope}\n\nAktuális dátum és idő: ${budapestNow}\n\nFelhasználói kérdés:\n${message.trim()}`
   }];
 }
 
 async function requestModel(apiKey, input, allowToolCalls = true) {
+  // A modell, az utasítások és az engedélyezett adatlekérő eszközök itt találkoznak.
   const response = await fetchOpenAIWithRetry(apiKey, {
     model: GREENHOUSE_MODEL,
     service_tier: "default",
@@ -206,6 +218,7 @@ async function requestModel(apiKey, input, allowToolCalls = true) {
 }
 
 async function executeToolCall(toolCall) {
+  // Az asszisztens kérésére csak olvasunk az adatokból, eszközállapotot nem módosítunk.
   try {
     const args = JSON.parse(toolCall.arguments || "{}");
     const result = await runGreenhouseTool(toolCall.name, args);
@@ -238,7 +251,7 @@ async function runAssistantTurn(apiKey, input, allowToolCalls) {
 
     const toolOutputs = await Promise.all(toolCalls.map(executeToolCall));
 
-    // Keep the model's response items so tool results stay attached to their calls.
+    // A modell korábbi eszközhívásait is visszaadjuk, hogy az eredményt hozzá tudja kötni.
     input.push(...response.output, ...toolOutputs);
     response = await requestModel(apiKey, input, allowToolCalls);
     round += 1;
@@ -275,6 +288,7 @@ function userFacingError(error) {
 }
 
 export default async function handler(req, res) {
+  // A chat csak aktív munkamenettel és POST kéréssel használható.
   if (!requireAuthentication(req, res)) return;
 
   if (req.method !== "POST") {

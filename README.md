@@ -1,10 +1,10 @@
 # IoT okos növényház webes felügyelete
 
-ESP32-alapú növényházi prototípus böngészős felülete. A szerver privát ThingSpeak-csatornáról olvassa a legutóbbi méréseket, a dashboard megjeleníti az értékeket és az eszközállapotokat, az AI-chat pedig megkapja az aktuális adatcsomagot.
+ESP32-alapú növényházi prototípus böngészős felülete. A szerver a beállított ThingSpeak-csatornáról olvassa a legutóbbi méréseket, a dashboard megjeleníti az értékeket és az eszközállapotokat, az AI-chat pedig megkapja az aktuális adatcsomagot.
 
 ## ThingSpeak mezők
 
-A privát csatorna azonosítója és Read API Key-je szerveroldali környezeti változóként van beállítva. A kulcs nem kerül a böngészőbe.
+A csatornaazonosítót és – ha szükséges – a Read API Key-t szerveroldali környezeti változóként állítjuk be. A kulcs nem kerül a böngészőbe; privát csatornánál a lekéréshez szükséges.
 
 | Mező | Csatornabeállítás |
 | --- | --- |

@@ -19,7 +19,7 @@ export async function fetchThingSpeakFeeds({ results = 60, days, start, end } = 
   if (readApiKey) url.searchParams.set("api_key", readApiKey);
   url.searchParams.set("timezone", "UTC");
 
-  // A ThingSpeak időintervallumot, napok számát vagy rekordszámot fogad el.
+  // Egy lekérdezés időintervallumot, napok számát vagy rekordszámot kap.
   if (start && end) {
     url.searchParams.set("start", start);
     url.searchParams.set("end", end);
@@ -37,6 +37,7 @@ export async function fetchThingSpeakFeeds({ results = 60, days, start, end } = 
 
   let response;
   try {
+    // Az API-kulcs szerveroldalon marad, nem kerül ki a böngészőbe.
     response = await fetch(url, { cache: "no-store" });
   } catch (error) {
     throw new ThingSpeakError(
