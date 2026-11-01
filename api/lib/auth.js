@@ -3,6 +3,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 const COOKIE_NAME = "greenhouse_session";
 const SESSION_SECONDS = 8 * 60 * 60;
 
+// A jelszót és a cookie ellenőrzéséhez használt titkot csak szerverbeállításból olvassuk.
 function getAuthSettings() {
   const username = process.env.ADMIN_USERNAME;
   const password = process.env.ADMIN_PASSWORD;
@@ -16,12 +17,14 @@ function getAuthSettings() {
 }
 
 function secureEquals(left, right) {
+  // Így az összehasonlítás futási idejéből nem lehet következtetni a belépési adatokra.
   const leftHash = createHash("sha256").update(left).digest();
   const rightHash = createHash("sha256").update(right).digest();
   return timingSafeEqual(leftHash, rightHash);
 }
 
 function sign(payload, secret) {
+  // Ezzel az aláírással később észrevesszük, ha valaki átírta a cookie tartalmát.
   return createHmac("sha256", secret).update(payload).digest("base64url");
 }
 
@@ -39,6 +42,7 @@ export function isAuthenticated(req) {
   const [payload, signature, extra] = getCookie(req).split(".");
   if (!payload || !signature || extra) return false;
 
+  // Csak érvényes aláírású, még le nem járt munkamenetet fogadunk el.
   const expected = Buffer.from(sign(payload, settings.sessionSecret), "base64url");
   const supplied = Buffer.from(signature, "base64url");
   if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return false;
@@ -73,6 +77,7 @@ export function verifyCredentials(username, password) {
 }
 
 export function createSessionCookie(username, sessionSecret, req) {
+  // A cookie JavaScriptből nem olvasható, és nyolc óra után automatikusan lejár.
   const payload = Buffer.from(JSON.stringify({
     user: username,
     expiresAt: Date.now() + SESSION_SECONDS * 1000
