@@ -13,6 +13,16 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+app.all("/api/auth", async (req, res) => {
+  try {
+    const { default: authHandler } = await import("./api/auth.js");
+    return authHandler(req, res);
+  } catch (error) {
+    console.error("[auth] Local route failed", error.name);
+    return res.status(500).json({ error: "Nem sikerült elindítani a bejelentkezést." });
+  }
+});
+
 app.post("/api/chat", async (req, res) => {
   try {
     // Helyben és a tárhelyen is ugyanazt az API-kezelőt használjuk.
