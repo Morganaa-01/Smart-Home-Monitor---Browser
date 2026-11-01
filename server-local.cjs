@@ -5,6 +5,7 @@ require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Kiszolgáljuk az irányítópult fájljait, és fogadjuk a chat JSON-kéréseit.
 app.use(express.json({ limit: "20kb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -14,6 +15,7 @@ app.get("/", (req, res) => {
 
 app.post("/api/chat", async (req, res) => {
   try {
+    // Helyben és a tárhelyen is ugyanazt az API-kezelőt használjuk.
     const { default: chatHandler } = await import("./api/chat.js");
     return chatHandler(req, res);
   } catch (error) {

@@ -10,7 +10,21 @@ const deviceLocationInput = document.getElementById("deviceLocation");
 const saveDeviceBtn = document.getElementById("saveDeviceBtn");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
 
-let devices = JSON.parse(localStorage.getItem("smartHomeDevices")) || [];
+// ----------------------- Mentett eszközök adatai ---------------------------
+
+function loadDevices() {
+  try {
+    const savedDevices = JSON.parse(localStorage.getItem("smartHomeDevices") || "[]");
+    return Array.isArray(savedDevices)
+      ? savedDevices.filter((device) => device && typeof device === "object" && !Array.isArray(device))
+      : [];
+  } catch (error) {
+    console.warn("Saved device data could not be read:", error);
+    return [];
+  }
+}
+
+let devices = loadDevices();
 
 function saveDevices() {
   localStorage.setItem("smartHomeDevices", JSON.stringify(devices));
@@ -21,41 +35,63 @@ function formatDate(dateString) {
     return "Not available";
   }
 
-  return new Date(dateString).toLocaleString();
+  const date = new Date(dateString);
+  return Number.isNaN(date.getTime()) ? "Not available" : date.toLocaleString();
 }
 
+function addDetail(container, label, value) {
+  const line = document.createElement("p");
+  const name = document.createElement("strong");
+
+  name.textContent = `${label}: `;
+  line.append(name, document.createTextNode(value));
+  container.appendChild(line);
+}
+
+// -------------------------- Eszközlista megjelenítése ----------------------
+
 function renderDevices() {
-  deviceList.innerHTML = "";
+  deviceList.replaceChildren();
 
   if (devices.length === 0) {
-    deviceList.innerHTML = "<p>No devices added yet.</p>";
+    const emptyMessage = document.createElement("p");
+    emptyMessage.textContent = "No devices added yet.";
+    deviceList.appendChild(emptyMessage);
     return;
   }
 
   devices.forEach((device, index) => {
     const item = document.createElement("div");
+    const details = document.createElement("div");
+    const title = document.createElement("h4");
+    const actions = document.createElement("div");
+    const editButton = document.createElement("button");
+    const deleteButton = document.createElement("button");
+
     item.className = "saved-device device-list-item";
+    actions.className = "device-actions";
+    title.textContent = device.name || "Unnamed device";
 
-    item.innerHTML = `
-      <div>
-        <h4>${device.name}</h4>
-        <p><strong>Type:</strong> ${device.type}</p>
-        <p><strong>ThingSpeak field:</strong> ${device.field || "Not assigned"}</p>
-        <p><strong>Location:</strong> ${device.location || "Not specified"}</p>
-        <p><strong>Status:</strong> ${device.status || "Active"}</p>
-        <p><strong>Created:</strong> ${formatDate(device.createdAt)}</p>
-      </div>
+    // Az elmentett adatokat egyszerű szövegként tesszük az oldalra.
+    addDetail(details, "Type", device.type || "Not specified");
+    addDetail(details, "ThingSpeak field", device.field || device.thingSpeakField || "Not assigned");
+    addDetail(details, "Location", device.location || "Not specified");
+    addDetail(details, "Status", device.status || "Active");
+    addDetail(details, "Created", formatDate(device.createdAt));
 
-      <div class="device-actions">
-        <button class="button secondary" type="button" onclick="editDevice(${index})">
-          Edit
-        </button>
-        <button class="button danger-small" type="button" onclick="deleteDevice(${index})">
-          Delete
-        </button>
-      </div>
-    `;
+    editButton.type = "button";
+    editButton.className = "button secondary";
+    editButton.textContent = "Edit";
+    editButton.addEventListener("click", () => editDevice(index));
 
+    deleteButton.type = "button";
+    deleteButton.className = "button danger-small";
+    deleteButton.textContent = "Delete";
+    deleteButton.addEventListener("click", () => deleteDevice(index));
+
+    actions.append(editButton, deleteButton);
+    details.prepend(title);
+    item.append(details, actions);
     deviceList.appendChild(item);
   });
 }
@@ -66,29 +102,27 @@ function resetForm() {
   saveDeviceBtn.textContent = "Save device";
 }
 
+// ----------------------- Eszköz felvétele, szerkesztése, törlése ------------
+
 function editDevice(index) {
   const device = devices[index];
+  if (!device) return;
 
   editIndexInput.value = index;
-  deviceNameInput.value = device.name;
-  deviceTypeInput.value = device.type;
-  thingSpeakFieldInput.value = device.field || "";
+  deviceNameInput.value = device.name || "";
+  deviceTypeInput.value = device.type || "";
+  thingSpeakFieldInput.value = device.field || device.thingSpeakField || "";
   deviceLocationInput.value = device.location || "";
-
   saveDeviceBtn.textContent = "Update device";
 
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function deleteDevice(index) {
-  const confirmDelete = confirm("Are you sure you want to delete this device?");
+  if (!devices[index]) return;
 
-  if (!confirmDelete) {
-    return;
-  }
+  const confirmed = window.confirm("Are you sure you want to delete this device?");
+  if (!confirmed) return;
 
   devices.splice(index, 1);
   saveDevices();
@@ -100,32 +134,33 @@ deviceForm.addEventListener("submit", (event) => {
   event.preventDefault();
 
   const editIndex = editIndexInput.value;
-
   const name = deviceNameInput.value.trim();
   const type = deviceTypeInput.value;
   const field = thingSpeakFieldInput.value.trim();
   const location = deviceLocationInput.value.trim();
 
-  if (name === "" || type === "") {
-    alert("Please enter a device name and select a device type.");
+  if (!name || !type) {
+    window.alert("Please enter a device name and select a device type.");
     return;
   }
 
+  const existingDevice = editIndex === "" ? null : devices[Number(editIndex)];
+  const now = new Date().toISOString();
   const deviceData = {
     name,
     type,
     field,
     thingSpeakField: field,
     location,
-    status: "Active",
-    createdAt: editIndex === "" ? new Date().toISOString() : devices[editIndex].createdAt,
-    updatedAt: new Date().toISOString()
+    status: existingDevice?.status || "Active",
+    createdAt: existingDevice?.createdAt || now,
+    updatedAt: now
   };
 
-  if (editIndex === "") {
+  if (editIndex === "" || !existingDevice) {
     devices.push(deviceData);
   } else {
-    devices[editIndex] = deviceData;
+    devices[Number(editIndex)] = deviceData;
   }
 
   saveDevices();
@@ -135,9 +170,10 @@ deviceForm.addEventListener("submit", (event) => {
 
 cancelEditBtn.addEventListener("click", resetForm);
 
+// ------------------------- Téma és oldalindítás ----------------------------
+
 function setupTheme() {
   const storedTheme = localStorage.getItem("smart-home-theme");
-
   if (storedTheme === "dark") {
     document.body.classList.add("dark");
   }
