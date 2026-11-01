@@ -564,20 +564,34 @@ button:disabled,
 }
 
 .nav-logout {
-  padding: 0.55rem 0.7rem;
-  border: 0;
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-color);
   border-radius: 999px;
-  background: transparent;
-  color: var(--muted-color);
+  background: var(--surface);
+  color: var(--text-color);
   font: inherit;
   font-size: 0.9rem;
   font-weight: 700;
   cursor: pointer;
 }
 
+.nav-logout .material-symbols-rounded {
+  font-size: 20px;
+}
+
 .nav-logout:hover {
   background: var(--flet-control-focus-soft);
   color: var(--text-color);
+}
+
+.nav-logout:focus-visible {
+  outline: 3px solid var(--flet-control-focus-soft);
+  outline-offset: 3px;
 }
 
 .navbar {
