@@ -78,17 +78,33 @@
       <article class="status-card latest-card" aria-live="polite">
         <div class="card-heading-row">
           <div><p class="eyebrow">ThingSpeak</p><h2>Legutóbbi adatcsomag</h2></div>
-          <span class="connection-pill" id="connectionStatus">Kapcsolódás…</span>
+          <div class="latest-card-actions">
+            <span class="connection-pill" id="connectionStatus">Kapcsolódás…</span>
+            <button class="icon-button latest-settings-toggle" id="summarySettingsToggle" type="button" aria-label="Főoldali sávok szerkesztése" aria-expanded="false" aria-controls="summarySettings metricSettings chartEditHint" title="Főoldali megjelenés szerkesztése">
+              <span class="material-symbols-rounded" aria-hidden="true">settings</span>
+            </button>
+          </div>
         </div>
         <p class="muted" id="lastUpdated">Mérés betöltése…</p>
-        <div class="status-row"><span>Hőmérséklet · BME280</span><strong id="heroTemperature">—</strong></div>
-        <div class="status-row"><span>Páratartalom · BME280</span><strong id="heroHumidity">—</strong></div>
-        <div class="status-row"><span>Légnyomás · BME280</span><strong id="heroPressure">—</strong></div>
-        <div class="status-row"><span>Megvilágítás · TSL2561</span><strong id="heroLight">—</strong></div>
-        <div class="status-row"><span>Esőérzékelő</span><strong id="heroRain">—</strong></div>
-        <div class="status-row"><span>Ventilátor</span><strong id="heroFan">—</strong></div>
-        <div class="status-row"><span>Kiegészítő LED</span><strong id="heroLed">—</strong></div>
-        <div class="status-row"><span>Növényház teteje</span><strong id="heroRoof">—</strong></div>
+        <section class="latest-card-settings" id="summarySettings" aria-label="Megjelenített eszközsorok" hidden>
+          <p class="muted">Húzd a sorokat a kívánt helyre, vagy használd a nyilakat. A beállítás ezen a böngészőn mentődik.</p>
+          <ul class="summary-config-list" id="summaryConfigList"></ul>
+          <div class="summary-add-row">
+            <label class="visually-hidden" for="summaryRowSelect">Hozzáadható eszközsor</label>
+            <select id="summaryRowSelect"><option value="">Eszközsor kiválasztása</option></select>
+            <button class="button secondary" id="addSummaryRowBtn" type="button">Hozzáadás</button>
+          </div>
+        </section>
+        <div class="latest-metric-rows" id="latestMetricRows">
+          <div class="status-row" data-summary-key="temperature"><span>Hőmérséklet · BME280</span><strong id="heroTemperature">—</strong></div>
+          <div class="status-row" data-summary-key="humidity"><span>Páratartalom · BME280</span><strong id="heroHumidity">—</strong></div>
+          <div class="status-row" data-summary-key="pressure"><span>Légnyomás · BME280</span><strong id="heroPressure">—</strong></div>
+          <div class="status-row" data-summary-key="light"><span>Megvilágítás · TSL2561</span><strong id="heroLight">—</strong></div>
+          <div class="status-row" data-summary-key="rain"><span>Esőérzékelő</span><strong id="heroRain">—</strong></div>
+          <div class="status-row" data-summary-key="fan"><span>Ventilátor</span><strong id="heroFan">—</strong></div>
+          <div class="status-row" data-summary-key="led"><span>Kiegészítő LED</span><strong id="heroLed">—</strong></div>
+          <div class="status-row" data-summary-key="roof"><span>Növényház teteje</span><strong id="heroRoof">—</strong></div>
+        </div>
       </article>
     </section>
   </header>
@@ -96,15 +112,35 @@
   <main class="page-content">
     <section class="section-heading dashboard-heading" id="dashboardSection">
       <div><p class="eyebrow">Élő felügyelet</p><h2>Környezeti mérések</h2></div>
-      <button class="button secondary" id="refreshDataBtn" type="button">Frissítés</button>
+      <div class="dashboard-heading-actions">
+        <a class="button secondary" href="add-device.html"><span class="material-symbols-rounded" aria-hidden="true">add</span><span>Eszköz hozzáadása</span></a>
+        <button class="button secondary" id="refreshDataBtn" type="button">Frissítés</button>
+      </div>
     </section>
     <p class="muted section-intro">Az értékeket az ESP32 tölti fel a ThingSpeak csatornára. A felület 30 másodpercenként frissül.</p>
 
+    <section class="display-editor-panel" id="metricSettings" aria-label="Környezeti mérőkártyák szerkesztése" hidden>
+      <div class="display-editor-heading">
+        <div><p class="eyebrow">Főoldali megjelenés</p><h3>Környezeti mérőkártyák</h3></div>
+        <span class="display-editor-note">A változtatások ezen a böngészőn mentődnek.</span>
+      </div>
+      <ul class="summary-config-list" id="metricConfigList"></ul>
+      <div class="summary-add-row">
+        <label class="visually-hidden" for="metricRowSelect">Hozzáadható mérőkártya</label>
+        <select id="metricRowSelect"><option value="">Mérőkártya kiválasztása</option></select>
+        <button class="button secondary" id="addMetricRowBtn" type="button">Hozzáadás</button>
+      </div>
+    </section>
+
     <section class="dashboard-grid greenhouse-grid" aria-label="Legutóbbi szenzoradatok">
-      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">device_thermostat</span><p class="metric-label">Hőmérséklet</p><p class="value"><span id="temperatureValue">—</span><span class="unit">°C</span></p><p class="metric-detail">BME280 érzékelő</p></article>
-      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">water_drop</span><p class="metric-label">Relatív páratartalom</p><p class="value"><span id="humidityValue">—</span><span class="unit">%</span></p><p class="metric-detail">BME280 érzékelő</p></article>
-      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">speed</span><p class="metric-label">Légnyomás</p><p class="value"><span id="pressureValue">—</span><span class="unit">hPa</span></p><p class="metric-detail">BME280 érzékelő</p></article>
-      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">light_mode</span><p class="metric-label">Megvilágítás</p><p class="value"><span id="lightValue">—</span><span class="unit">lux</span></p><p class="metric-detail">TSL2561 fényérzékelő</p></article>
+      <article class="card sensor-card" data-metric-card="temperature"><span class="metric-icon material-symbols-rounded" aria-hidden="true">device_thermostat</span><p class="metric-label">Hőmérséklet</p><p class="value"><span id="temperatureValue">—</span><span class="unit">°C</span></p><p class="metric-detail">BME280 érzékelő</p></article>
+      <article class="card sensor-card" data-metric-card="humidity"><span class="metric-icon material-symbols-rounded" aria-hidden="true">water_drop</span><p class="metric-label">Relatív páratartalom</p><p class="value"><span id="humidityValue">—</span><span class="unit">%</span></p><p class="metric-detail">BME280 érzékelő</p></article>
+      <article class="card sensor-card" data-metric-card="pressure"><span class="metric-icon material-symbols-rounded" aria-hidden="true">speed</span><p class="metric-label">Légnyomás</p><p class="value"><span id="pressureValue">—</span><span class="unit">hPa</span></p><p class="metric-detail">BME280 érzékelő</p></article>
+      <article class="card sensor-card" data-metric-card="light"><span class="metric-icon material-symbols-rounded" aria-hidden="true">light_mode</span><p class="metric-label">Megvilágítás</p><p class="value"><span id="lightValue">—</span><span class="unit">lux</span></p><p class="metric-detail">TSL2561 fényérzékelő</p></article>
+      <article class="card sensor-card" data-metric-card="rain" hidden><span class="metric-icon material-symbols-rounded" aria-hidden="true">rainy</span><p class="metric-label">Esőérzékelő</p><p class="value" id="metricRainValue">—</p><p class="metric-detail">Növényházi érzékelő</p></article>
+      <article class="card sensor-card" data-metric-card="fan" hidden><span class="metric-icon material-symbols-rounded" aria-hidden="true">mode_fan</span><p class="metric-label">Ventilátor</p><p class="value" id="metricFanValue">—</p><p class="metric-detail">Rögzített eszközállapot</p></article>
+      <article class="card sensor-card" data-metric-card="led" hidden><span class="metric-icon material-symbols-rounded" aria-hidden="true">lightbulb</span><p class="metric-label">Kiegészítő LED</p><p class="value" id="metricLedValue">—</p><p class="metric-detail">Rögzített eszközállapot</p></article>
+      <article class="card sensor-card" data-metric-card="roof" hidden><span class="metric-icon material-symbols-rounded" aria-hidden="true">roofing</span><p class="metric-label">Növényház teteje</p><p class="value" id="metricRoofValue">—</p><p class="metric-detail">Rögzített eszközállapot</p></article>
     </section>
 
     <section class="card weather-card" id="weatherSection" aria-labelledby="weatherHeading">
@@ -145,13 +181,6 @@
         <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">lightbulb</span><h3>LED</h3><label class="device-demo-switch"><span>Próba kapcsoló</span><input id="ledDemoSwitch" type="checkbox" role="switch" aria-label="LED próba kapcsoló"><span class="flet-switch-track" aria-hidden="true"></span></label></article>
         <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">roofing</span><h3>Növényház teteje</h3><label class="device-demo-switch"><span>Próba kapcsoló</span><input id="roofDemoSwitch" type="checkbox" role="switch" aria-label="Növényház tető próba kapcsoló"><span class="flet-switch-track" aria-hidden="true"></span></label></article>
         <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">rainy</span><h3>Esőérzékelő</h3><p id="rainStatus" class="status status-pending">Nincs adat</p></article>
-      </div>
-      <div class="registered-devices-panel">
-        <div class="registered-devices-heading">
-          <h3>Felvett eszközök</h3>
-          <a class="button secondary" href="add-device.html"><span class="material-symbols-rounded" aria-hidden="true">add</span><span>Új eszköz</span></a>
-        </div>
-        <div class="registered-device-list" id="registeredDeviceList" aria-live="polite"></div>
       </div>
     </section>
 
@@ -213,16 +242,8 @@
         </div>
       </div>
       <p class="chart-status muted" id="chartStatus" role="status" aria-live="polite">Grafikonadatok betöltése…</p>
-      <div class="chart-grid greenhouse-charts">
-        <div class="thingspeak-chart" data-field-chart="1" title="Hőmérséklet előzményei"></div>
-        <div class="thingspeak-chart" data-field-chart="2" title="Páratartalom előzményei"></div>
-        <div class="thingspeak-chart" data-field-chart="3" title="Légnyomás előzményei"></div>
-        <div class="thingspeak-chart" data-field-chart="4" title="Megvilágítás előzményei"></div>
-        <div class="thingspeak-chart" data-field-chart="5" title="Esőérzékelő előzményei"></div>
-        <div class="thingspeak-chart" data-field-chart="6" title="Ventilátor előzményei"></div>
-        <div class="thingspeak-chart" data-field-chart="7" title="LED állapota"></div>
-        <div class="thingspeak-chart" data-field-chart="8" title="Tetőállapot előzményei"></div>
-      </div>
+      <p class="chart-edit-hint" id="chartEditHint" hidden>Grafikon szerkesztése: az X eltávolítja a grafikont, az üres csempén lévő plusz mezőválasztót nyit.</p>
+      <div class="chart-grid greenhouse-charts" id="chartGrid" aria-label="ThingSpeak-grafikonok"></div>
     </section>
   </main>
 
