@@ -11,14 +11,25 @@
  * This CSS recreates the useful control appearance in the existing HTML app.
  */
 :root {
-  --flet-button-fill: #a8caff;
-  --flet-button-text: #17324f;
-  --flet-chart-bg: #111418;
-  --flet-chart-border: #363d45;
-  --flet-chart-grid: rgba(181, 194, 207, 0.2);
-  --flet-chart-line: #00bfd2;
-  --flet-chart-label: #c2c9d2;
-  --flet-chart-value: #a8caff;
+  --flet-button-fill: #347444;
+  --flet-button-text: #ffffff;
+  --flet-button-hover: #28613a;
+  --flet-control-focus: #347444;
+  --flet-control-focus-soft: rgba(52, 116, 68, 0.14);
+  --flet-chart-bg: #17201a;
+  --flet-chart-border: #394a3d;
+  --flet-chart-grid: rgba(214, 229, 216, 0.17);
+  --flet-chart-line: #81c98c;
+  --flet-chart-label: #d1ddd3;
+  --flet-chart-value: #a8d9ae;
+}
+
+body.dark {
+  --flet-button-fill: #b7d9b8;
+  --flet-button-text: #17331d;
+  --flet-button-hover: #c9e5c8;
+  --flet-control-focus: #a8d5ab;
+  --flet-control-focus-soft: rgba(168, 213, 171, 0.18);
 }
 
 /* Flet AutoComplete pattern adapted to the weather location search */
@@ -62,7 +73,7 @@
 
 .weather-suggestion:hover,
 .weather-suggestion[aria-selected="true"] {
-  background: rgba(168, 202, 255, 0.14);
+  background: var(--flet-control-focus-soft);
   color: var(--text-color);
   transform: none;
 }
@@ -254,7 +265,7 @@
 .button,
 button {
   min-height: 44px;
-  border-radius: 999px;
+  border-radius: 12px;
   transition: background-color 160ms ease, border-color 160ms ease,
     color 160ms ease, transform 160ms ease;
 }
@@ -271,22 +282,22 @@ button:not(.button.secondary):not(.theme-toggle):not(.menu-toggle):not(.weather-
 .button.primary:hover,
 #sendChatBtn:hover,
 button:not(.button.secondary):not(.theme-toggle):not(.menu-toggle):not(.weather-suggestion):hover {
-  border-color: #c5dcff;
-  background: #c5dcff;
-  color: #142b43;
+  border-color: var(--flet-button-hover);
+  background: var(--flet-button-hover);
+  color: var(--flet-button-text);
   transform: translateY(-1px);
 }
 
 .button.secondary {
-  border: 1px solid #8fbaff;
-  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 55%, var(--border-color));
+  border-radius: 12px;
   background: transparent;
   color: var(--text-color);
 }
 
 .button.secondary:hover {
   border-color: var(--flet-button-fill);
-  background: rgba(168, 202, 255, 0.12);
+  background: var(--flet-control-focus-soft);
   color: var(--text-color);
 }
 
@@ -296,7 +307,7 @@ button:not(.button.secondary):not(.theme-toggle):not(.menu-toggle):not(.weather-
   min-width: 44px;
   height: 44px;
   padding: 0;
-  border: 1px solid #8fbaff;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 55%, var(--border-color));
   border-radius: 50%;
   background: transparent;
   color: var(--text-color);
@@ -305,8 +316,8 @@ button:not(.button.secondary):not(.theme-toggle):not(.menu-toggle):not(.weather-
 
 .theme-toggle.theme-toggle-icon:hover,
 .menu-toggle:hover {
-  border-color: var(--flet-button-fill);
-  background: rgba(168, 202, 255, 0.14);
+  border-color: var(--flet-control-focus);
+  background: var(--flet-control-focus-soft);
   color: var(--text-color);
 }
 
@@ -342,6 +353,12 @@ body.dark .thingspeak-chart {
   font: 600 16px system-ui, sans-serif;
 }
 
+.thingspeak-chart .chart-summary {
+  fill: var(--flet-chart-label);
+  font: 500 13px system-ui, sans-serif;
+  opacity: 0.86;
+}
+
 .thingspeak-chart .chart-value {
   fill: var(--flet-chart-value);
   font: 700 16px system-ui, sans-serif;
@@ -367,9 +384,154 @@ body.dark .thingspeak-chart {
 .thingspeak-chart .chart-line {
   fill: none;
   stroke: var(--flet-chart-line);
-  stroke-width: 4;
+  stroke-width: 3;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* Project-specific presentation built from the gallery's cards, buttons and charts. */
+.site-header {
+  padding: 1rem clamp(1rem, 4vw, 2.5rem) 0;
+}
+
+.navbar {
+  border-radius: 16px;
+  box-shadow: 0 5px 20px rgba(23, 32, 24, 0.08);
+}
+
+.greenhouse-hero {
+  padding-top: clamp(2.25rem, 5vw, 4rem);
+  padding-bottom: clamp(2.5rem, 5vw, 4rem);
+}
+
+.greenhouse-hero h1 {
+  max-width: 14ch;
+  font-size: clamp(2.5rem, 5.5vw, 4.25rem);
+  line-height: 1.04;
+  letter-spacing: -0.045em;
+}
+
+.greenhouse-hero .hero-copy {
+  max-width: 58ch;
+  margin-top: 1rem;
+  font-size: 1.05rem;
+}
+
+.status-card,
+.card {
+  border-radius: 18px;
+  box-shadow: 0 5px 22px rgba(23, 32, 24, 0.07);
+  backdrop-filter: none;
+}
+
+.greenhouse-grid .sensor-card {
+  min-height: 184px;
+  padding: 1.15rem 1.2rem;
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 78%, var(--primary-color));
+}
+
+.greenhouse-grid .sensor-card .value {
+  font-size: clamp(1.8rem, 2.4vw, 2.15rem);
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+}
+
+.greenhouse-grid .sensor-card .metric-label {
+  font-size: 0.95rem;
+}
+
+.greenhouse-devices .device-item {
+  display: flex;
+  min-height: 160px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.1rem;
+  border-radius: 16px;
+  box-shadow: none;
+  transform: none;
+}
+
+.device-grid.greenhouse-devices {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.greenhouse-devices .device-item:hover {
+  box-shadow: 0 6px 18px rgba(23, 32, 24, 0.1);
+  transform: translateY(-1px);
+}
+
+.greenhouse-devices .device-demo-switch {
+  margin-top: 0.45rem;
+}
+
+.greenhouse-devices .device-demo-switch > span:first-child {
+  color: var(--muted-color);
+}
+
+.weather-result {
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--primary-color) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary-color) 20%, var(--border-color));
+}
+
+.chat-messages {
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary-color) 18%, var(--border-color));
+}
+
+.user-message {
+  background: color-mix(in srgb, var(--primary-color) 18%, var(--surface));
+  color: var(--text-color);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 32%, var(--border-color));
+}
+
+.chart-toolbar select,
+.weather-form input,
+.chat-input-row input {
+  border-radius: 12px;
+}
+
+.chart-toolbar select:focus-visible,
+.weather-form input:focus-visible,
+.chat-input-row input:focus-visible {
+  outline: 3px solid var(--flet-control-focus-soft);
+  outline-offset: 2px;
+  border-color: var(--flet-control-focus);
+}
+
+.greenhouse-charts .thingspeak-chart {
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(23, 32, 24, 0.08);
+}
+
+.button.primary:focus-visible,
+.button.secondary:focus-visible,
+#sendChatBtn:focus-visible,
+#refreshDataBtn:focus-visible,
+#refreshChartsBtn:focus-visible,
+.theme-toggle:focus-visible,
+.menu-toggle:focus-visible {
+  outline: 3px solid var(--flet-control-focus-soft);
+  outline-offset: 3px;
+}
+
+@media (max-width: 980px) {
+  .device-grid.greenhouse-devices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .device-grid.greenhouse-devices {
+    grid-template-columns: 1fr;
+  }
+
+  .greenhouse-hero h1 {
+    max-width: 12ch;
+  }
 }
 
 @media (max-width: 900px) {
