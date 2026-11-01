@@ -8,6 +8,7 @@ import {
 export default function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
+  // A GET a munkamenet állapotát adja vissza, a DELETE kijelentkeztet.
   if (req.method === "GET") {
     const settings = verifyCredentials("", "");
     if (!settings.configured) {
@@ -26,6 +27,7 @@ export default function handler(req, res) {
     return res.status(405).json({ error: "Nem támogatott kérés." });
   }
 
+  // POST esetén ellenőrizzük a belépési adatokat, és siker esetén küldjük vissza a cookie-t.
   const username = typeof req.body?.username === "string" ? req.body.username : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   if (!username || !password || username.length > 120 || password.length > 200) {

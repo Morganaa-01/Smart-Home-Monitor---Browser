@@ -47,6 +47,7 @@ const CURRENT_GREENHOUSE_DEVICES = [
 // ----------------------- Mentett eszközök adatai ---------------------------
 
 function loadDevices() {
+  // Első megnyitáskor betesszük az ESP32 ismert eszközeit, utána a felhasználó listáját töltjük vissza.
   try {
     const savedDevices = JSON.parse(localStorage.getItem("smartHomeDevices") || "[]");
     const devices = Array.isArray(savedDevices)
@@ -72,6 +73,7 @@ function loadDevices() {
 let devices = loadDevices();
 
 function saveDevices() {
+  // Ez az eszközlista böngészőnként külön tárolódik, nem a ThingSpeak-csatornába kerül.
   localStorage.setItem("smartHomeDevices", JSON.stringify(devices));
 }
 
@@ -87,6 +89,7 @@ function formatDate(dateString) {
 }
 
 function logDeviceActivity(message) {
+  // Ugyanabba a helyi eseménynaplóba írunk, amit a főoldal is megjelenít.
   try {
     const savedEntries = JSON.parse(localStorage.getItem("greenhouse-activity-log") || "[]");
     const entries = Array.isArray(savedEntries) ? savedEntries : [];
@@ -109,6 +112,7 @@ function addDetail(container, label, value) {
 // -------------------------- Eszközlista megjelenítése ----------------------
 
 function renderDevices() {
+  // A listaelemeket DOM-elemekből építjük fel; a felhasználói szöveg nem HTML-kódként fut le.
   deviceList.replaceChildren();
   const count = document.getElementById("deviceCount");
   if (count) count.textContent = `${devices.length} eszköz`;
@@ -163,6 +167,7 @@ function renderDevices() {
 }
 
 function resetForm() {
+  // Sikeres mentés vagy megszakítás után visszaállítjuk az űrlapot új eszköz felvételéhez.
   deviceForm.reset();
   editIndexInput.value = "";
   saveDeviceBtn.textContent = "Eszköz mentése";
@@ -172,6 +177,7 @@ function resetForm() {
 // ----------------------- Eszköz felvétele, szerkesztése, törlése ------------
 
 function editDevice(index) {
+  // A kiválasztott eszköz adatait visszatöltjük az űrlap mezőibe.
   const device = devices[index];
   if (!device) return;
 
@@ -186,6 +192,7 @@ function editDevice(index) {
 }
 
 function deleteDevice(index) {
+  // Törlés előtt megerősítést kérünk, mert ez az eszköz kikerül a böngészőben mentett listából.
   if (!devices[index]) return;
 
   const confirmed = window.confirm("Biztosan törlöd ezt az eszközt?");
