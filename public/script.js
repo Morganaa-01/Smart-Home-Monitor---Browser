@@ -33,6 +33,10 @@ const CHART_UNITS = {
   8: ""
 };
 
+let chartFeedsForResize = null;
+let chartResizeTimer = null;
+let chartCustomRangeActive = false;
+
 const $ = (id) => document.getElementById(id);
 
 // ------------------------------ Grafikonsegédek -----------------------------
@@ -52,6 +56,43 @@ function formatBudapestTime(value) {
     minute: "2-digit",
     second: "2-digit"
   }).format(date);
+}
+
+function formatCompactBudapestTime(value) {
+  if (!value) return "nincs adat";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "nincs adat";
+
+  return new Intl.DateTimeFormat("hu-HU", {
+    timeZone: "Europe/Budapest",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).format(date);
+}
+
+function formatCompactDateTimeInput(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value || "");
+  return match ? `${match[3]}.${match[2]}. ${match[4]}:${match[5]}` : value;
+}
+
+// A dátummező Budapest faliórája szerint dolgozik, a böngésző helyi zónájától függetlenül.
+function formatBudapestDateTimeInput(value) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Budapest",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(value)
+    .filter(({ type }) => type !== "literal")
+    .map(({ type, value: part }) => [type, part]));
+
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
 // Sok mérési pontnál ritkítjuk az adatsort, de a szélső értékeket megtartjuk.
@@ -91,8 +132,10 @@ function downsampleReadings(readings, maxPoints = 480) {
 
 // SVG-ből rajzoljuk a grafikonokat, így nem kell külön grafikonkönyvtár.
 function renderThingSpeakCharts(feeds) {
+  chartFeedsForResize = feeds;
   const svgNS = "http://www.w3.org/2000/svg";
   document.querySelectorAll("[data-field-chart]").forEach((chart) => {
+    const chartWidth = Math.max(Math.round(chart.getBoundingClientRect().width) || 760, 320);
     const field = "field" + chart.dataset.fieldChart;
     const readings = feeds
       .map((feed) => ({
@@ -105,7 +148,8 @@ function renderThingSpeakCharts(feeds) {
     const label = CHART_LABELS[fieldNumber] || chart.title;
     const unit = CHART_UNITS[fieldNumber] || "";
     const svg = document.createElementNS(svgNS, "svg");
-    svg.setAttribute("viewBox", "0 0 760 270");
+    // A viewBox a kártya szélességéhez igazodik, így mobilon sem zsugorodnak össze a feliratok.
+    svg.setAttribute("viewBox", `0 0 ${chartWidth} 270`);
     svg.setAttribute("preserveAspectRatio", "none");
     svg.setAttribute("role", "img");
     svg.setAttribute("aria-label", label);
@@ -131,9 +175,9 @@ function renderThingSpeakCharts(feeds) {
     const latestValue = readings.length
       ? new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 2 }).format(readings[readings.length - 1].value)
       : "—";
-    addText(latestValue, 736, 30, "chart-value", "end");
+    addText(latestValue, chartWidth - 20, 30, "chart-value", "end");
 
-    const plot = { left: 74, right: 736, top: 76, bottom: 226 };
+    const plot = { left: 58, right: chartWidth - 18, top: 76, bottom: 226 };
     const frame = document.createElementNS(svgNS, "rect");
     frame.setAttribute("x", String(plot.left));
     frame.setAttribute("y", String(plot.top));
@@ -197,7 +241,8 @@ function renderThingSpeakCharts(feeds) {
 
       const readingIndex = Math.round(ratio * Math.max(readings.length - 1, 0));
       const timestampLabel = readings.length ? formatTimestamp(readings[readingIndex].timestamp) : "";
-      addText(timestampLabel, x, plot.bottom + 22, "chart-axis-label", "middle");
+      const anchor = index === 0 ? "start" : index === xTickCount - 1 ? "end" : "middle";
+      addText(timestampLabel, x, plot.bottom + 22, "chart-axis-label", anchor);
     }
 
     if (plottedReadings.length) {
@@ -276,7 +321,7 @@ function renderThingSpeakCharts(feeds) {
         const bounds = svg.getBoundingClientRect();
         if (!bounds.width || !bounds.height) return;
 
-        const pointerX = ((event.clientX - bounds.left) / bounds.width) * 760;
+        const pointerX = ((event.clientX - bounds.left) / bounds.width) * chartWidth;
         let nearestIndex = 0;
         let nearestDistance = Number.POSITIVE_INFINITY;
 
@@ -324,6 +369,13 @@ function renderThingSpeakCharts(feeds) {
     chart.replaceChildren(svg);
   });
 }
+
+// Átméretezéskor újrarajzoljuk a grafikont, hogy elforgatásnál is olvasható maradjon.
+window.addEventListener("resize", () => {
+  if (!chartFeedsForResize) return;
+  window.clearTimeout(chartResizeTimer);
+  chartResizeTimer = window.setTimeout(() => renderThingSpeakCharts(chartFeedsForResize), 150);
+});
 
 // ----------------------- Chat és szenzoradatok -----------------------------
 
@@ -466,27 +518,40 @@ async function loadLatestReadings({ quiet = false } = {}) {
 async function loadChartHistory({ quiet = false } = {}) {
   const button = $("refreshChartsBtn");
   const status = $("chartStatus");
-  const [rangeType, rangeValue] = $("chartRangeSelect").value.split(":");
-  const params = new URLSearchParams({ [rangeType]: rangeValue });
+  const rangeSelect = $("chartRangeSelect");
 
   if (button) button.disabled = true;
   if (!quiet) status.textContent = "Grafikonadatok betöltése…";
 
   try {
+    let params;
+    let rangeLabel;
+    if (chartCustomRangeActive) {
+      const start = $("chartStartDate").value;
+      const end = $("chartEndDate").value;
+      if (!start || !end || end <= start) {
+        throw new Error("Adj meg érvényes kezdő és záró időpontot; a záró időpont legyen későbbi.");
+      }
+      params = new URLSearchParams({ start, end });
+      rangeLabel = `${formatCompactDateTimeInput(start)}–${formatCompactDateTimeInput(end)}`;
+    } else {
+      const [rangeType, rangeValue] = rangeSelect.value.split(":");
+      params = new URLSearchParams({ [rangeType]: rangeValue });
+      rangeLabel = rangeSelect.selectedOptions[0]?.textContent || "kiválasztott időszak";
+    }
+
     const response = await fetch(`/api/thingspeak?${params.toString()}`, { cache: "no-store" });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `ThingSpeak válasza: ${response.status}`);
 
     const feeds = Array.isArray(data.feeds) ? data.feeds : [];
     renderThingSpeakCharts(feeds);
-    const rangeLabel = $("chartRangeSelect").selectedOptions[0]?.textContent || "kiválasztott időszak";
     state.lastChartFetchedAt = new Date();
     const latestMeasurement = feeds.at(-1)?.created_at;
-    const channelId = data.channel?.id ? ` · ThingSpeak #${data.channel.id}` : "";
-    const latestLabel = latestMeasurement
-      ? ` · Legutóbbi mérés: ${formatBudapestTime(latestMeasurement)}`
-      : " · Nincs mérési adat";
-    status.textContent = `${feeds.length} mérési pont betöltve · ${rangeLabel} · Grafikon frissítve: ${formatBudapestTime(state.lastChartFetchedAt)}${latestLabel}${channelId}.`;
+    const periodSummary = chartCustomRangeActive
+      ? rangeLabel
+      : `utolsó: ${formatCompactBudapestTime(latestMeasurement)}`;
+    status.textContent = `${new Intl.NumberFormat("hu-HU").format(feeds.length)} pont · ${periodSummary} · frissítve ${formatCompactBudapestTime(state.lastChartFetchedAt)}`;
   } catch (error) {
     const lastSuccess = state.lastChartFetchedAt
       ? ` Utolsó sikeres frissítés: ${formatBudapestTime(state.lastChartFetchedAt)}.`
@@ -817,14 +882,19 @@ function setupTheme() {
 
 function setupNavigation() {
   const menuButton = $("menuToggle");
+  const menuIcon = menuButton.querySelector(".material-symbols-rounded");
   const navLinks = $("navLinks");
   menuButton.addEventListener("click", () => {
     const isOpen = navLinks.classList.toggle("open");
     menuButton.setAttribute("aria-expanded", String(isOpen));
+    menuButton.setAttribute("aria-label", isOpen ? "Menü bezárása" : "Menü megnyitása");
+    menuIcon.textContent = isOpen ? "close" : "menu";
   });
   navLinks.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => {
     navLinks.classList.remove("open");
     menuButton.setAttribute("aria-expanded", "false");
+    menuButton.setAttribute("aria-label", "Menü megnyitása");
+    menuIcon.textContent = "menu";
   }));
 }
 
@@ -839,13 +909,55 @@ function setupDemoSwitches() {
 
 function setupChartControls() {
   const select = $("chartRangeSelect");
+  const filterPanel = $("chartFilterPanel");
+  const customRange = $("chartCustomRange");
+  const filterToggle = $("chartFilterToggle");
+  const startInput = $("chartStartDate");
+  const endInput = $("chartEndDate");
   const savedRange = localStorage.getItem("greenhouse-chart-range");
+  chartCustomRangeActive = savedRange === "custom"
+    || localStorage.getItem("greenhouse-chart-custom-active") === "true";
   if ([...select.options].some((option) => option.value === savedRange)) {
     select.value = savedRange;
+  } else {
+    select.value = "results:60";
   }
+  if (chartCustomRangeActive) select.value = "";
+
+  const now = new Date();
+  now.setSeconds(0, 0);
+  startInput.value = localStorage.getItem("greenhouse-chart-start")
+    || formatBudapestDateTimeInput(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+  endInput.value = localStorage.getItem("greenhouse-chart-end")
+    || formatBudapestDateTimeInput(now);
+  filterPanel.hidden = true;
+  filterToggle.setAttribute("aria-expanded", "false");
+  filterToggle.classList.toggle("has-custom-range", chartCustomRangeActive);
 
   select.addEventListener("change", () => {
     localStorage.setItem("greenhouse-chart-range", select.value);
+    chartCustomRangeActive = false;
+    localStorage.setItem("greenhouse-chart-custom-active", "false");
+    filterToggle.classList.remove("has-custom-range");
+    loadChartHistory();
+  });
+  filterToggle.addEventListener("click", () => {
+    const shouldOpen = filterPanel.hidden;
+    filterPanel.hidden = !shouldOpen;
+    filterToggle.setAttribute("aria-expanded", String(shouldOpen));
+    filterToggle.classList.toggle("is-active", shouldOpen);
+  });
+  customRange.addEventListener("submit", (event) => {
+    event.preventDefault();
+    chartCustomRangeActive = true;
+    select.value = "";
+    localStorage.setItem("greenhouse-chart-custom-active", "true");
+    filterToggle.classList.add("has-custom-range");
+    localStorage.setItem("greenhouse-chart-start", startInput.value);
+    localStorage.setItem("greenhouse-chart-end", endInput.value);
+    filterPanel.hidden = true;
+    filterToggle.setAttribute("aria-expanded", "false");
+    filterToggle.classList.remove("is-active");
     loadChartHistory();
   });
   $("refreshChartsBtn").addEventListener("click", () => loadChartHistory());

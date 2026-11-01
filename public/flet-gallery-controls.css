@@ -279,7 +279,7 @@ button {
 
 .button.primary,
 #sendChatBtn,
-button:not(.button.secondary):not(.theme-toggle):not(.menu-toggle):not(.weather-suggestion):not(.danger-small):not(.danger-btn):not(:disabled) {
+button:not(.button.secondary):not(.theme-toggle):not(.menu-toggle):not(.password-visibility):not(.weather-suggestion):not(.danger-small):not(.danger-btn):not(:disabled) {
   border: 1px solid var(--flet-button-fill);
   background: var(--flet-button-fill);
   color: var(--flet-button-text);
@@ -288,7 +288,7 @@ button:not(.button.secondary):not(.theme-toggle):not(.menu-toggle):not(.weather-
 
 .button.primary:not(:disabled):hover,
 #sendChatBtn:not(:disabled):hover,
-button:not(.button.secondary):not(.theme-toggle):not(.menu-toggle):not(.weather-suggestion):not(.danger-small):not(.danger-btn):not(:disabled):hover {
+button:not(.button.secondary):not(.theme-toggle):not(.menu-toggle):not(.password-visibility):not(.weather-suggestion):not(.danger-small):not(.danger-btn):not(:disabled):hover {
   border-color: var(--flet-button-hover);
   background: var(--flet-button-hover);
   color: var(--flet-button-text);
@@ -358,13 +358,13 @@ button:disabled,
 
 .thingspeak-chart .chart-title {
   fill: var(--flet-chart-label);
-  font: 600 16px system-ui, sans-serif;
+  font: 600 17px system-ui, sans-serif;
 }
 
 .thingspeak-chart .chart-summary {
   fill: var(--flet-chart-label);
-  font: 500 13px system-ui, sans-serif;
-  opacity: 0.86;
+  font: 500 14px system-ui, sans-serif;
+  opacity: 0.96;
 }
 
 .thingspeak-chart .chart-value {
@@ -374,8 +374,8 @@ button:disabled,
 
 .thingspeak-chart .chart-axis-label {
   fill: var(--flet-chart-label);
-  font: 500 12px system-ui, sans-serif;
-  opacity: 0.82;
+  font: 500 13px system-ui, sans-serif;
+  opacity: 0.96;
 }
 
 .thingspeak-chart .chart-grid-line {
@@ -437,12 +437,12 @@ button:disabled,
 
 .thingspeak-chart .chart-tooltip-time {
   fill: var(--flet-chart-label);
-  font: 500 12px system-ui, sans-serif;
+  font: 500 13px system-ui, sans-serif;
 }
 
 .thingspeak-chart .chart-tooltip-value {
   fill: var(--flet-chart-value);
-  font: 700 14px system-ui, sans-serif;
+  font: 700 15px system-ui, sans-serif;
 }
 
 /* A galéria kártyáira, gombjaira és grafikonjaira épülő, projekthez igazított megjelenés. */
@@ -528,8 +528,12 @@ button:disabled,
   top: 50%;
   right: 0.45rem;
   display: grid;
+  box-sizing: border-box;
+  flex: 0 0 36px;
   width: 36px;
+  min-width: 36px;
   height: 36px;
+  min-height: 36px;
   place-items: center;
   padding: 0;
   transform: translateY(-50%);
@@ -758,5 +762,336 @@ button:disabled,
   .thingspeak-chart {
     height: 250px;
     min-height: 250px;
+  }
+}
+
+/* A menügomb méretét a többi kör alakú ikonhoz igazítjuk. */
+.navbar .menu-toggle {
+  display: none;
+  flex: 0 0 44px;
+  place-items: center;
+  box-sizing: border-box;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  line-height: 1;
+}
+
+@media (max-width: 960px) {
+  .navbar .menu-toggle {
+    display: inline-grid;
+    flex-basis: 40px;
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
+  }
+
+}
+
+@media (max-width: 420px) {
+  .navbar {
+    gap: 0.35rem;
+    padding: 0.55rem;
+  }
+
+  .navbar .logo {
+    gap: 0.25rem;
+    font-size: 0.82rem;
+  }
+
+  .navbar .menu-toggle,
+  .navbar #themeToggle.theme-toggle-icon,
+  .navbar #logoutBtn.nav-logout {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+  }
+
+  .navbar .menu-toggle {
+    flex-basis: 36px;
+  }
+}
+
+.chart-filter-panel {
+  display: grid;
+  flex: 1 1 100%;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0.35rem 0 0.25rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: var(--surface-raised);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--text-color) 6%, transparent);
+}
+
+.chart-filter-panel[hidden] {
+  display: none !important;
+}
+
+.chart-filter-panel > label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--text-color);
+  font-weight: 700;
+}
+
+.chart-filter-panel select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text-color);
+  font: inherit;
+}
+
+.chart-custom-range {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0.25rem 0 0;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.chart-custom-range[hidden] {
+  display: none !important;
+}
+
+.chart-custom-range label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--text-color);
+  font-weight: 700;
+}
+
+.chart-filter-heading {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: flex-start;
+  gap: 0.7rem;
+  margin-bottom: 0.1rem;
+}
+
+.chart-filter-heading > .material-symbols-rounded {
+  display: grid;
+  flex: 0 0 36px;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary-color) 12%, var(--surface));
+  color: var(--primary-dark);
+}
+
+.chart-filter-heading strong {
+  display: block;
+  margin: 0.1rem 0 0.15rem;
+  color: var(--text-color);
+}
+
+.chart-filter-heading p {
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
+.chart-custom-range input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text-color);
+  font: inherit;
+}
+
+.chart-custom-range button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  margin: 0;
+}
+
+.chart-toolbar .chart-filter-toggle,
+.chart-toolbar .chart-refresh-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.chart-toolbar .chart-filter-toggle .material-symbols-rounded,
+.chart-toolbar .chart-refresh-button .material-symbols-rounded,
+.chart-custom-range button .material-symbols-rounded {
+  font-size: 20px;
+}
+
+.chart-toolbar .chart-filter-toggle.is-active,
+.chart-toolbar .chart-filter-toggle.has-custom-range {
+  border-color: color-mix(in srgb, var(--primary-color) 56%, var(--border-color));
+  background: color-mix(in srgb, var(--primary-color) 11%, var(--surface));
+  color: var(--primary-dark);
+}
+
+@media (max-width: 580px) {
+  .chart-custom-range {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .chart-filter-panel {
+    width: 100%;
+  }
+
+  .chart-filter-heading {
+    grid-column: 1;
+  }
+
+  .chart-toolbar .chart-filter-toggle,
+  .chart-toolbar .chart-refresh-button,
+  .chart-custom-range button {
+    width: 100%;
+  }
+}
+
+/* Finom mozgás a Flet implicit animációs és hover mintái alapján. */
+:root {
+  --ui-motion-fast: 150ms;
+  --ui-motion-standard: 220ms;
+  --ui-motion-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+body {
+  transition-property: background-color, color;
+  transition-duration: var(--ui-motion-standard);
+  transition-timing-function: var(--ui-motion-ease);
+}
+
+.card,
+.status-card {
+  transition-property: background-color, border-color, box-shadow, color;
+  transition-duration: var(--ui-motion-standard);
+  transition-timing-function: var(--ui-motion-ease);
+}
+
+button,
+.button {
+  transition-duration: var(--ui-motion-standard);
+  transition-timing-function: var(--ui-motion-ease);
+}
+
+input,
+select {
+  transition-property: background-color, border-color, box-shadow, color;
+  transition-duration: var(--ui-motion-fast);
+  transition-timing-function: var(--ui-motion-ease);
+}
+
+.greenhouse-grid .sensor-card,
+.greenhouse-devices .device-item,
+.thingspeak-chart {
+  transition-property: background-color, border-color, box-shadow, color, transform;
+}
+
+.nav-links a,
+.weather-suggestion,
+.dropdown-menu a,
+.password-visibility,
+.menu-toggle .material-symbols-rounded {
+  transition: color var(--ui-motion-fast) ease,
+    background-color var(--ui-motion-fast) ease,
+    border-color var(--ui-motion-fast) ease,
+    transform var(--ui-motion-fast) ease;
+}
+
+.menu-toggle[aria-expanded="true"] .material-symbols-rounded {
+  transform: rotate(90deg);
+}
+
+.password-visibility:active {
+  transform: translateY(-50%) scale(0.96);
+}
+
+.chat-message {
+  animation: message-arrive 180ms var(--ui-motion-ease) both;
+}
+
+.weather-suggestions:not([hidden]) {
+  animation: suggestion-arrive 140ms ease-out both;
+  transform-origin: top center;
+}
+
+.navbar .nav-links.open {
+  animation: menu-arrive 180ms var(--ui-motion-ease) both;
+}
+
+@keyframes message-arrive {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes suggestion-arrive {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes menu-arrive {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .greenhouse-grid .sensor-card:hover,
+  .greenhouse-devices .device-item:hover {
+    border-color: color-mix(in srgb, var(--primary-color) 58%, var(--border-color));
+    box-shadow: 0 10px 24px color-mix(in srgb, var(--text-color) 11%, transparent);
+    transform: translateY(-2px);
+  }
+
+  .thingspeak-chart:hover {
+    border-color: color-mix(in srgb, var(--primary-color) 58%, var(--border-color));
+    box-shadow: 0 8px 22px color-mix(in srgb, var(--text-color) 10%, transparent);
+  }
+
+  button:active:not(:disabled):not(.password-visibility),
+  .button:active {
+    transform: translateY(0) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }
