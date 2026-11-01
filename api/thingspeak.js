@@ -5,6 +5,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed. Use GET." });
   }
 
+  // Ellenőrizzük a lekérdezés paramétereit, hogy hibás időszaknál érthető választ adjunk.
   const hasDays = req.query?.days !== undefined;
   const requestedPeriod = req.query?.period;
   const requestedDays = Number(req.query?.days);

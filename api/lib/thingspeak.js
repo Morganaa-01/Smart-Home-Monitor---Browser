@@ -11,6 +11,7 @@ export class ThingSpeakError extends Error {
 }
 
 export async function fetchThingSpeakFeeds({ results = 60, days, start, end } = {}) {
+  // A csatorna adatait a szerver környezeti változóiból olvassuk ki.
   const channelId = process.env.THINGSPEAK_CHANNEL_ID || DEFAULT_CHANNEL_ID;
   const readApiKey = process.env.THINGSPEAK_READ_API_KEY;
 
@@ -18,6 +19,7 @@ export async function fetchThingSpeakFeeds({ results = 60, days, start, end } = 
   if (readApiKey) url.searchParams.set("api_key", readApiKey);
   url.searchParams.set("timezone", "UTC");
 
+  // A ThingSpeak időintervallumot, napok számát vagy rekordszámot fogad el.
   if (start && end) {
     url.searchParams.set("start", start);
     url.searchParams.set("end", end);

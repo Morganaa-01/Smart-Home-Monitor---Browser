@@ -1,6 +1,8 @@
+// Ennyi időnként kér új méréseket az irányítópult a ThingSpeaktől.
 const REFRESH_INTERVAL_MS = 30_000;
 const CHART_REFRESH_INTERVAL_MS = 5 * 60_000;
 
+// Itt tároljuk a legutóbbi adatokat, hogy a felület és a chat ugyanazt használja.
 const state = {
   readings: null,
   lastEntry: null,
@@ -9,8 +11,33 @@ const state = {
   chartRefreshTimer: null
 };
 
+const CHART_LABELS = {
+  1: "Hőmérséklet előzményei",
+  2: "Páratartalom előzményei",
+  3: "Légnyomás előzményei",
+  4: "Megvilágítás előzményei",
+  5: "Esőérzékelő előzményei",
+  6: "Ventilátor előzményei",
+  7: "LED állapota",
+  8: "Tetőállapot előzményei"
+};
+
+const CHART_UNITS = {
+  1: "°C",
+  2: "%",
+  3: "",
+  4: "lux",
+  5: "",
+  6: "",
+  7: "",
+  8: ""
+};
+
 const $ = (id) => document.getElementById(id);
 
+// ------------------------------ Grafikonsegédek -----------------------------
+
+// A ThingSpeak időpontjai UTC-ben vannak, a felületen budapesti időt mutatunk.
 function formatBudapestTime(value) {
   if (!value) return "—";
   const date = value instanceof Date ? value : new Date(value);
@@ -27,11 +54,13 @@ function formatBudapestTime(value) {
   }).format(date);
 }
 
+// Sok mérési pontnál ritkítjuk az adatsort, de a szélső értékeket megtartjuk.
 function downsampleReadings(readings, maxPoints = 480) {
   if (readings.length <= maxPoints) {
     return readings.map((reading, index) => ({ ...reading, sourceIndex: index }));
   }
 
+  // Minden csoportból az alsó és felső értéket tartjuk meg, hogy a csúcsok látszódjanak.
   const bucketSize = Math.ceil((readings.length - 2) / ((maxPoints - 2) / 2));
   const sampled = [{ ...readings[0], sourceIndex: 0 }];
 
@@ -58,6 +87,9 @@ function downsampleReadings(readings, maxPoints = 480) {
   return sampled;
 }
 
+// ---------------------- Grafikonok és kurzorkövetés ------------------------
+
+// SVG-ből rajzoljuk a grafikonokat, így nem kell külön grafikonkönyvtár.
 function renderThingSpeakCharts(feeds) {
   const svgNS = "http://www.w3.org/2000/svg";
   document.querySelectorAll("[data-field-chart]").forEach((chart) => {
@@ -69,9 +101,9 @@ function renderThingSpeakCharts(feeds) {
       }))
       .filter((reading) => Number.isFinite(reading.value));
     const plottedReadings = downsampleReadings(readings);
-    const labels = { 1: "Hőmérséklet előzményei", 2: "Páratartalom előzményei", 3: "Légnyomás előzményei", 4: "Megvilágítás előzményei", 5: "Esőérzékelő előzményei", 6: "Ventilátor előzményei", 7: "LED állapota", 8: "Tetőállapot előzményei" };
-    const label = labels[chart.dataset.fieldChart] || chart.title;
-    const unit = { 1: "°C", 2: "%", 3: "", 4: "lux", 5: "", 6: "", 7: "", 8: "" }[chart.dataset.fieldChart];
+    const fieldNumber = chart.dataset.fieldChart;
+    const label = CHART_LABELS[fieldNumber] || chart.title;
+    const unit = CHART_UNITS[fieldNumber] || "";
     const svg = document.createElementNS(svgNS, "svg");
     svg.setAttribute("viewBox", "0 0 760 270");
     svg.setAttribute("preserveAspectRatio", "none");
@@ -248,6 +280,7 @@ function renderThingSpeakCharts(feeds) {
         let nearestIndex = 0;
         let nearestDistance = Number.POSITIVE_INFINITY;
 
+        // Megkeressük a kurzorhoz legközelebbi mérést, és megjelenítjük az értékét.
         coordinates.forEach((coordinate, index) => {
           const distance = Math.abs(coordinate.x - pointerX);
           if (distance < nearestDistance) {
@@ -292,6 +325,9 @@ function renderThingSpeakCharts(feeds) {
   });
 }
 
+// ----------------------- Chat és szenzoradatok -----------------------------
+
+// A chat válaszát szövegként jelenítjük meg, nem HTML-kódként.
 function addChatMessage(sender, message, type) {
   const item = document.createElement("article");
   item.className = `chat-message ${type}-message`;
@@ -319,6 +355,7 @@ function cleanAssistantReply(message) {
     .trim();
 }
 
+// A ThingSpeak mezői szövegként érkeznek; a hiányzó értékeket nullként kezeljük.
 function numericField(value) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
@@ -351,6 +388,9 @@ function syncDemoSwitch(id, isOn) {
   if (!control.dataset.previewChanged) control.checked = isOn === true;
 }
 
+// ----------------------- Irányítópult mérései ------------------------------
+
+// Frissítjük a mérési kártyákat és a kapcsolók állapotát egy ThingSpeak rekordból.
 function renderReadings(entry) {
   const fields = {
     temperature: numericField(entry.field1),
@@ -389,6 +429,7 @@ function renderReadings(entry) {
   const ageSeconds = date && !Number.isNaN(date.valueOf())
     ? Math.max(0, Math.floor((Date.now() - date.valueOf()) / 1000))
     : null;
+  // Két percnél régebbi mérésnél a felület elavult adatot jelez.
   const isStale = ageSeconds !== null && ageSeconds > 120;
   $("lastUpdated").textContent = date && !Number.isNaN(date.valueOf())
     ? `Utoljára frissítve: ${date.toLocaleString("hu-HU")}`
@@ -397,6 +438,7 @@ function renderReadings(entry) {
   $("connectionStatus").className = `connection-pill ${isStale ? "stale" : "connected"}`;
 }
 
+// Betöltünk néhány friss rekordot a kártyákhoz és az AI-chat adatcsomagjához.
 async function loadLatestReadings({ quiet = false } = {}) {
   const button = $("refreshDataBtn");
   if (button) button.disabled = true;
@@ -420,6 +462,7 @@ async function loadLatestReadings({ quiet = false } = {}) {
   }
 }
 
+// Betöltjük a kiválasztott időszak adatait, majd újrarajzoljuk a grafikonokat.
 async function loadChartHistory({ quiet = false } = {}) {
   const button = $("refreshChartsBtn");
   const status = $("chartStatus");
@@ -455,6 +498,9 @@ async function loadChartHistory({ quiet = false } = {}) {
   }
 }
 
+// ------------------------------ Időjárás -----------------------------------
+
+// A településkereséshez és az aktuális időjáráshoz az Open-Meteo szolgáltatását használjuk.
 function setWeatherStatus(message, isError = false) {
   const status = $("weatherStatus");
   status.textContent = message;
@@ -523,6 +569,7 @@ async function searchWeatherByCity(event) {
   }
 }
 
+// Gépelés után röviden várunk a javaslatok lekérésével, így nem küldünk kérést minden billentyűre.
 let weatherSuggestionTimer;
 let weatherSuggestionRequest = 0;
 let weatherSelectedPlace = null;
@@ -646,6 +693,7 @@ async function findNearbyPlaceName(latitude, longitude) {
   return address.city || address.town || address.village || address.municipality || address.hamlet || address.suburb || address.county || data.name || null;
 }
 
+// A helyadatok lekérését csak a gomb megnyomása után indítjuk el.
 function useCurrentLocation() {
   const button = $("useMyLocationBtn");
   if (!navigator.geolocation) {
@@ -690,6 +738,9 @@ function setupWeather() {
   $("useMyLocationBtn").addEventListener("click", useCurrentLocation);
 }
 
+// ------------------------------- AI-chat -----------------------------------
+
+// Összeállítjuk a szenzoradatokat, amelyeket a felhasználó kérdésével küldünk el.
 function sensorContext() {
   if (!state.readings) return { status: "Még nincs betöltött mérési adat." };
   const measuredAt = state.lastEntry?.created_at ? new Date(state.lastEntry.created_at) : null;
@@ -747,6 +798,8 @@ async function submitChat(event) {
   }
 }
 
+// ------------------------- Felület indítása --------------------------------
+
 function setupTheme() {
   const savedTheme = localStorage.getItem("greenhouse-theme");
   const themeToggle = $("themeToggle");
@@ -776,6 +829,7 @@ function setupNavigation() {
 }
 
 function setupDemoSwitches() {
+  // Ezek csak látványkapcsolók, nem küldenek parancsot az ESP32-nek.
   ["fanDemoSwitch", "ledDemoSwitch", "roofDemoSwitch"].forEach((id) => {
     $(id).addEventListener("change", (event) => {
       event.currentTarget.dataset.previewChanged = "true";
@@ -797,6 +851,7 @@ function setupChartControls() {
   $("refreshChartsBtn").addEventListener("click", () => loadChartHistory());
 }
 
+// Beállítjuk a felület gombjait, majd elindítjuk az adatok frissítését.
 function init() {
   setupTheme();
   setupWeather();

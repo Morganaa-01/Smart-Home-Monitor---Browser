@@ -1,14 +1,19 @@
 :root {
-  --bg: #f5f8f3;
+  --bg: #f3f6f1;
   --surface: #ffffff;
-  --text: #172018;
-  --muted: #637067;
-  --primary: #2f7d32;
-  --primary-dark: #245c27;
-  --border: #dfe8dd;
-  --warning: #b46600;
-  --danger: #b42318;
-  --shadow: 0 18px 45px rgba(23, 32, 24, 0.12);
+  --surface-raised: #f9fbf8;
+  --text: #1c271e;
+  --muted: #58665b;
+  --primary: #2e6b3c;
+  --primary-dark: #245630;
+  --border: #d8e2d8;
+  --warning: #8a5200;
+  --danger: #aa2d25;
+  --danger-button-bg: #aa2d25;
+  --danger-button-hover: #8f231d;
+  --success-soft: #e5f1e6;
+  --control-focus-soft: rgba(46, 107, 60, 0.16);
+  --shadow: 0 12px 32px rgba(28, 39, 30, 0.08);
 
   --card-color: var(--surface);
   --text-color: var(--text);
@@ -17,20 +22,25 @@
   --border-color: var(--border);
   --danger-color: var(--danger);
   --warning-color: var(--warning);
-  --accent-color: #bbf7d0;
+  --accent-color: #dceede;
 }
 
 body.dark {
-  --bg: #111711;
-  --surface: #1b241c;
-  --text: #f3f8f1;
-  --muted: #b4c1b5;
-  --primary: #7ccc7f;
-  --primary-dark: #9ee5a0;
-  --border: #314132;
-  --warning: #ffd166;
-  --danger: #ff8a80;
-  --shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+  --bg: #121813;
+  --surface: #1c261e;
+  --surface-raised: #232f25;
+  --text: #edf3ed;
+  --muted: #b2c0b4;
+  --primary: #98d4a0;
+  --primary-dark: #b0e4b5;
+  --border: #3a4a3d;
+  --warning: #f1c96d;
+  --danger: #ff9a8f;
+  --danger-button-bg: #873b37;
+  --danger-button-hover: #a14b45;
+  --success-soft: #263d2b;
+  --control-focus-soft: rgba(152, 212, 160, 0.2);
+  --shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
 
   --card-color: var(--surface);
   --text-color: var(--text);
@@ -39,7 +49,7 @@ body.dark {
   --border-color: var(--border);
   --danger-color: var(--danger);
   --warning-color: var(--warning);
-  --accent-color: #9ee5a0;
+  --accent-color: #294632;
 }
 
 .visually-hidden {
@@ -68,9 +78,10 @@ body {
   background: var(--bg);
   color: var(--text);
   line-height: 1.6;
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
-/* ===== Sticky Transparent Navigation ===== */
+/* ===== Rögzített, áttetsző navigáció ===== */
 
 a {
   color: inherit;
@@ -178,7 +189,7 @@ a {
   border-color: var(--primary-color);
 }
 
-/* ===== Top Hero ===== */
+/* ===== Felső bemutató rész ===== */
 
 .hero {
   display: grid;
@@ -230,7 +241,7 @@ a {
   border-top: 1px solid var(--border-color);
 }
 
-/* ===== Layout ===== */
+/* ===== Elrendezés ===== */
 
 main {
   width: min(1120px, 92%);
@@ -259,7 +270,7 @@ main {
   font-weight: bold;
 }
 
-/* ===== Login ===== */
+/* ===== Bejelentkezés ===== */
 
 .login-card {
   max-width: 460px;
@@ -275,17 +286,16 @@ main {
   margin-top: 1rem;
   padding: 0.85rem;
   border-radius: 14px;
-  background: rgba(34, 197, 94, 0.12);
-  color: #166534;
-  border: 1px solid rgba(34, 197, 94, 0.18);
+  background: var(--success-soft);
+  color: var(--primary-dark);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 24%, var(--border-color));
 }
 
 body.dark .demo-login-info {
-  color: #bbf7d0;
-  background: rgba(34, 197, 94, 0.12);
+  color: var(--text-color);
 }
 
-/* ===== Dashboard Hero ===== */
+/* ===== Irányítópult nyitó része ===== */
 
 .hero-section {
   margin-bottom: 1.5rem;
@@ -313,14 +323,18 @@ body.dark .demo-login-info {
 
 .eyebrow {
   margin: 0 0 0.8rem;
-  color: #bbf7d0;
+  color: var(--primary-color);
   text-transform: uppercase;
   letter-spacing: 0.14em;
   font-size: 0.78rem;
   font-weight: 800;
 }
 
-/* ===== Forms and Buttons ===== */
+.hero-section .eyebrow {
+  color: #d7f0dc;
+}
+
+/* ===== Űrlapok és gombok ===== */
 
 label {
   display: block;
@@ -337,28 +351,28 @@ select {
   border-radius: 14px;
   font-size: 1rem;
   color: var(--text-color);
-  background: rgba(255, 255, 255, 0.86);
+  background: var(--surface);
   outline: none;
 }
 
 body.dark input,
 body.dark select {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f8fafc;
+  background: var(--surface-raised);
+  color: var(--text-color);
 }
 select option {
   background: var(--surface);
   color: var(--text);
 }
 body.dark select option {
-  background: #1b241c;
-  color: #f8fafc;
+  background: var(--surface-raised);
+  color: var(--text-color);
 }
 
 input:focus,
 select:focus {
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.14);
+  box-shadow: 0 0 0 3px var(--control-focus-soft, rgba(46, 107, 60, 0.16));
 }
 
 input[type="range"] {
@@ -389,7 +403,7 @@ button:hover {
 }
 
 .danger-btn:hover {
-  background: #991b1b;
+  background: var(--danger-button-hover);
 }
 
 .button-row {
@@ -399,7 +413,7 @@ button:hover {
   flex-wrap: wrap;
 }
 
-/* ===== Dashboard ===== */
+/* ===== Irányítópult ===== */
 
 .dashboard-topbar {
   display: flex;
@@ -449,7 +463,7 @@ button:hover {
   margin: 0.4rem 0 1rem;
 }
 
-/* ===== Devices ===== */
+/* ===== Eszközök ===== */
 
 .device-grid {
   display: grid;
@@ -487,7 +501,7 @@ button:hover {
   color: var(--muted-color);
 }
 
-/* ===== Greenhouse dashboard ===== */
+/* ===== Okos növényház irányítópultja ===== */
 .greenhouse-hero {
   padding-top: 2rem;
   padding-bottom: 3.5rem;
@@ -535,7 +549,7 @@ button:hover {
   align-items: center;
   padding: 0.35rem 0.7rem;
   border-radius: 999px;
-  background: rgba(99, 112, 103, 0.12);
+  background: color-mix(in srgb, var(--surface-raised) 78%, var(--muted-color) 12%);
   color: var(--muted-color);
   font-size: 0.8rem;
   font-weight: 800;
@@ -544,12 +558,12 @@ button:hover {
 
 .connection-pill.connected {
   color: var(--primary-dark);
-  background: rgba(47, 125, 50, 0.13);
+  background: color-mix(in srgb, var(--primary-color) 14%, var(--surface));
 }
 
 .connection-pill.disconnected {
   color: var(--danger-color);
-  background: rgba(180, 35, 24, 0.12);
+  background: color-mix(in srgb, var(--danger-color) 13%, var(--surface));
 }
 
 .connection-pill.stale {
@@ -793,7 +807,7 @@ button:disabled {
   padding: 0.9rem 1rem;
   border: 1px solid var(--border-color);
   border-radius: 1rem;
-  background: rgba(34, 197, 94, 0.06);
+  background: color-mix(in srgb, var(--surface) 96%, var(--primary-color));
 }
 
 .device-list-item span {
@@ -801,7 +815,7 @@ button:disabled {
   color: var(--muted-color);
 }
 
-/* ===== Weather ===== */
+/* ===== Időjárás ===== */
 
 .weather-form {
   display: grid;
@@ -845,8 +859,8 @@ button:disabled {
   margin-top: 1rem;
   padding: 1rem;
   border-radius: 18px;
-  background: rgba(34, 197, 94, 0.08);
-  border: 1px solid rgba(34, 197, 94, 0.14);
+  background: color-mix(in srgb, var(--surface) 92%, var(--primary-color));
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, var(--primary-color));
 }
 
 .weather-result[hidden] {
@@ -908,7 +922,7 @@ button:disabled {
   font-weight: 700;
 }
 
-/* ===== Chat Box ===== */
+/* ===== Chatablak ===== */
 
 .chat-card {
   overflow: hidden;
@@ -919,8 +933,8 @@ button:disabled {
   overflow-y: auto;
   padding: 1rem;
   border-radius: 18px;
-  background: rgba(34, 197, 94, 0.08);
-  border: 1px solid rgba(34, 197, 94, 0.14);
+  background: color-mix(in srgb, var(--surface) 94%, var(--primary-color));
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, var(--primary-color));
   margin-bottom: 1rem;
 }
 
@@ -960,7 +974,7 @@ button:disabled {
   margin: 0;
 }
 
-/* ===== Event Log ===== */
+/* ===== Eseménynapló ===== */
 
 #eventLog {
   padding-left: 1.2rem;
@@ -971,7 +985,7 @@ button:disabled {
   margin-bottom: 0.5rem;
 }
 
-/* ===== ThingSpeak Charts ===== */
+/* ===== ThingSpeak-grafikonok ===== */
 
 #thingspeak {
   padding: 1rem 0;
@@ -1104,7 +1118,7 @@ body.dark .thingspeak-chart {
   background: var(--surface);
 }
 
-/* ===== Add Device Page ===== */
+/* ===== Eszköz hozzáadása oldal ===== */
 
 .compact-header {
   min-height: auto;
@@ -1157,15 +1171,15 @@ body.dark .thingspeak-chart {
 }
 
 .danger-small {
-  background: var(--danger);
+  background: var(--danger-button-bg);
   color: #ffffff;
 }
 
 .danger-small:hover {
-  background: #991b1b;
+  background: var(--danger-button-hover);
 }
 
-/* ===== Dropdown Navigation ===== */
+/* ===== Lenyíló navigáció ===== */
 
 .dropdown {
   position: relative;
@@ -1234,7 +1248,7 @@ body.dark .thingspeak-chart {
   height: 0.5rem;
 }
 
-/* ===== Footer ===== */
+/* ===== Lábléc ===== */
 
 footer {
   text-align: center;
@@ -1242,7 +1256,7 @@ footer {
   color: var(--muted-color);
 }
 
-/* ===== Responsive ===== */
+/* ===== Különböző képernyőméretek ===== */
 
 @media (max-width: 1100px) {
   .dashboard-grid,
@@ -1377,7 +1391,7 @@ footer {
   }
 }
 
-/* Greenhouse dashboard overrides after the original assignment styles. */
+/* Az irányítópult külön stílusai az alapbeállítások után következnek. */
 .dashboard-grid.greenhouse-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
