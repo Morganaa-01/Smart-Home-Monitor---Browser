@@ -52,6 +52,7 @@
         <li><a href="#dashboardSection">Áttekintés</a></li>
         <li><a href="#weatherSection">Kinti időjárás</a></li>
         <li><a href="#automationSection">Működés</a></li>
+        <li><a href="add-device.html">Eszközök kezelése</a></li>
         <li><a href="#chatSection">AI-asszisztens</a></li>
         <li><a href="#thingspeak">Mérési előzmények</a></li>
       </ul>
@@ -67,7 +68,7 @@
     <section class="hero greenhouse-hero" id="home">
       <div>
         <p class="eyebrow">ESP32 · IoT növényfelügyelet</p>
-        <h1>A növényház állapota, egy helyen</h1>
+        <h1>Okos felügyelet a növényházban</h1>
         <p class="hero-copy">Kövesd a szenzorok méréseit, nézd meg a helyi automatika állapotát, és kérj segítséget az aktuális környezeti adatok alapján.</p>
         <div class="hero-actions">
           <a class="button primary" href="#dashboardSection">Mérések megtekintése</a>
@@ -80,10 +81,14 @@
           <span class="connection-pill" id="connectionStatus">Kapcsolódás…</span>
         </div>
         <p class="muted" id="lastUpdated">Mérés betöltése…</p>
-        <div class="status-row"><span>Hőmérséklet</span><strong id="heroTemperature">—</strong></div>
-        <div class="status-row"><span>Páratartalom</span><strong id="heroHumidity">—</strong></div>
-        <div class="status-row"><span>Légnyomás</span><strong id="heroPressure">—</strong></div>
-        <div class="status-row"><span>Eső</span><strong id="heroRain">—</strong></div>
+        <div class="status-row"><span>Hőmérséklet · BME280</span><strong id="heroTemperature">—</strong></div>
+        <div class="status-row"><span>Páratartalom · BME280</span><strong id="heroHumidity">—</strong></div>
+        <div class="status-row"><span>Légnyomás · BME280</span><strong id="heroPressure">—</strong></div>
+        <div class="status-row"><span>Megvilágítás · TSL2561</span><strong id="heroLight">—</strong></div>
+        <div class="status-row"><span>Esőérzékelő</span><strong id="heroRain">—</strong></div>
+        <div class="status-row"><span>Ventilátor</span><strong id="heroFan">—</strong></div>
+        <div class="status-row"><span>Kiegészítő LED</span><strong id="heroLed">—</strong></div>
+        <div class="status-row"><span>Növényház teteje</span><strong id="heroRoof">—</strong></div>
       </article>
     </section>
   </header>
@@ -96,10 +101,10 @@
     <p class="muted section-intro">Az értékeket az ESP32 tölti fel a ThingSpeak csatornára. A felület 30 másodpercenként frissül.</p>
 
     <section class="dashboard-grid greenhouse-grid" aria-label="Legutóbbi szenzoradatok">
-      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">device_thermostat</span><p class="metric-label">Hőmérséklet</p><p class="value"><span id="temperatureValue">—</span><span class="unit">°C</span></p><p class="metric-detail">Alsó hőmérséklet-érzékelő</p></article>
-      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">water_drop</span><p class="metric-label">Relatív páratartalom</p><p class="value"><span id="humidityValue">—</span><span class="unit">%</span></p><p class="metric-detail">Alsó páratartalom-érzékelő</p></article>
-      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">speed</span><p class="metric-label">Légnyomás</p><p class="value"><span id="pressureValue">—</span></p><p class="metric-detail">ThingSpeak field3; a mértékegység a firmware-től függ</p></article>
-      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">light_mode</span><p class="metric-label">Megvilágítás</p><p class="value"><span id="lightValue">—</span><span class="unit">lux</span></p><p class="metric-detail">TSL fényérzékelő</p></article>
+      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">device_thermostat</span><p class="metric-label">Hőmérséklet</p><p class="value"><span id="temperatureValue">—</span><span class="unit">°C</span></p><p class="metric-detail">BME280 érzékelő</p></article>
+      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">water_drop</span><p class="metric-label">Relatív páratartalom</p><p class="value"><span id="humidityValue">—</span><span class="unit">%</span></p><p class="metric-detail">BME280 érzékelő</p></article>
+      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">speed</span><p class="metric-label">Légnyomás</p><p class="value"><span id="pressureValue">—</span><span class="unit">hPa</span></p><p class="metric-detail">BME280 érzékelő</p></article>
+      <article class="card sensor-card"><span class="metric-icon material-symbols-rounded" aria-hidden="true">light_mode</span><p class="metric-label">Megvilágítás</p><p class="value"><span id="lightValue">—</span><span class="unit">lux</span></p><p class="metric-detail">TSL2561 fényérzékelő</p></article>
     </section>
 
     <section class="card weather-card" id="weatherSection" aria-labelledby="weatherHeading">
@@ -141,7 +146,13 @@
         <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">roofing</span><h3>Növényház teteje</h3><label class="device-demo-switch"><span>Próba kapcsoló</span><input id="roofDemoSwitch" type="checkbox" role="switch" aria-label="Növényház tető próba kapcsoló"><span class="flet-switch-track" aria-hidden="true"></span></label></article>
         <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">rainy</span><h3>Esőérzékelő</h3><p id="rainStatus" class="status status-pending">Nincs adat</p></article>
       </div>
-      <div class="integration-note" id="integrationNote"><strong>Integrációs megjegyzés:</strong> field1 hőmérséklet, field2 páratartalom, field3 légnyomás, field4 lux, field5 eső, field6 ventilátor, field7 LED, field8 tető. A mikrovezérlő a szenzorok alapján helyben futtatja a szabályokat; távoli vezérlőparancsot ez az oldal nem küld.
+      <div class="registered-devices-panel">
+        <div class="registered-devices-heading">
+          <h3>Felvett eszközök</h3>
+          <a class="button secondary" href="add-device.html"><span class="material-symbols-rounded" aria-hidden="true">add</span><span>Új eszköz</span></a>
+        </div>
+        <div class="registered-device-list" id="registeredDeviceList" aria-live="polite"></div>
+      </div>
     </section>
 
     <section class="card chat-card" id="chatSection">
@@ -214,6 +225,23 @@
       </div>
     </section>
   </main>
+
+  <section class="section activity-log-section" id="activityLogSection" aria-labelledby="activityLogTitle">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">MŰKÖDÉSI ESEMÉNYEK</p>
+        <h2 id="activityLogTitle">Eseménynapló</h2>
+        <p class="muted">A legutóbbi frissítések és rendszeresemények. A napló ezen a böngészőn tárolódik.</p>
+      </div>
+      <button class="button secondary" id="clearActivityLogBtn" type="button">
+        <span class="material-symbols-rounded" aria-hidden="true">delete_sweep</span>
+        <span>Napló törlése</span>
+      </button>
+    </div>
+    <div class="card activity-log-card">
+      <ol class="activity-log-list" id="activityLogEntries" aria-live="polite"></ol>
+    </div>
+  </section>
 
   <footer class="site-footer"><p>IoT-alapú okos növényház · ESP32 · ThingSpeak</p></footer>
   </div>
