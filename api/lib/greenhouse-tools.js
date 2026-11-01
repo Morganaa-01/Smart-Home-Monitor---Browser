@@ -5,6 +5,9 @@ const HISTORY_FIELDS = ["all", ...GREENHOUSE_CONFIG.fields.map(({ field }) => fi
 const STATE_FIELDS = new Set(["field5", "field6", "field7", "field8"]);
 const MAX_HISTORY_HOURS = 720;
 const MAX_HISTORY_SAMPLES = 40;
+const SUNLIGHT_THRESHOLD_LUX = 600;
+const MAX_SUNLIGHT_SAMPLE_GAP_SECONDS = 60;
+const THINGSPEAK_UPLOAD_INTERVAL_SECONDS = 30;
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const BUDAPEST_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Europe/Budapest",
@@ -84,7 +87,7 @@ export const GREENHOUSE_TOOLS = [
   {
     type: "function",
     name: "get_sensor_history",
-    description: "Read historical ThingSpeak data and calculate summaries. Use hours for relative time ranges (1 to 720), or Budapest calendar dates for explicit date questions.",
+    description: "Read historical ThingSpeak data and calculate summaries. For field4, also estimates greenhouse sunshine hours from readings above the configured 600 lux threshold. Use hours for relative time ranges (1 to 720), or Budapest calendar dates for explicit date questions.",
     parameters: {
       type: "object",
       properties: {
@@ -196,9 +199,118 @@ function summarizeField(feeds, field) {
     summary.last_active_at_budapest = lastActive
       ? formatBudapestTimestamp(lastActive.recorded_at)
       : null;
+    if (field === "field5") {
+      summary.last_active_event = summarizeLastActiveEvent(feeds, field);
+    }
   }
 
   return summary;
+}
+
+function summarizeLastActiveEvent(feeds, field) {
+  const readings = feeds
+    .map((feed) => ({ timestamp: Date.parse(feed.created_at), value: numericValue(feed[field]) }))
+    .filter((reading) => Number.isFinite(reading.timestamp) && reading.value !== null)
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  let currentEvent = null;
+  let lastEvent = null;
+  let lastEventIsActive = false;
+  for (const reading of readings) {
+    if (reading.value !== 1) {
+      if (currentEvent) {
+        lastEvent = currentEvent;
+        lastEventIsActive = false;
+      }
+      currentEvent = null;
+      continue;
+    }
+
+    if (!currentEvent || reading.timestamp - currentEvent.lastTimestamp > MAX_SUNLIGHT_SAMPLE_GAP_SECONDS * 1000) {
+      if (currentEvent) {
+        lastEvent = currentEvent;
+        lastEventIsActive = false;
+      }
+      currentEvent = {
+        firstTimestamp: reading.timestamp,
+        lastTimestamp: reading.timestamp,
+        activeSamples: 1
+      };
+      continue;
+    }
+
+    currentEvent.lastTimestamp = reading.timestamp;
+    currentEvent.activeSamples += 1;
+  }
+  if (currentEvent) {
+    lastEvent = currentEvent;
+    lastEventIsActive = true;
+  }
+  if (!lastEvent) return null;
+
+  // A ThingSpeak 30 másodpercenként küld mintát, ezért az esemény hossza becslés.
+  return {
+    started_at_budapest: formatBudapestTimestamp(new Date(lastEvent.firstTimestamp).toISOString()),
+    last_active_at_budapest: formatBudapestTimestamp(new Date(lastEvent.lastTimestamp).toISOString()),
+    active_samples: lastEvent.activeSamples,
+    estimated_duration_seconds: lastEvent.lastTimestamp - lastEvent.firstTimestamp + THINGSPEAK_UPLOAD_INTERVAL_SECONDS,
+    is_active_at_end: lastEventIsActive,
+    duration_is_estimated: true
+  };
+}
+
+function calculateSunlightHours(feeds) {
+  const lightReadings = feeds
+    .map((feed) => ({ timestamp: Date.parse(feed.created_at), value: numericValue(feed.field4) }))
+    .filter((reading) => Number.isFinite(reading.timestamp) && reading.value !== null)
+    .sort((a, b) => a.timestamp - b.timestamp);
+  const secondsByDay = new Map();
+  let countedIntervals = 0;
+  let skippedLongGaps = 0;
+
+  for (const reading of lightReadings) {
+    const day = budapestDate(new Date(reading.timestamp).toISOString());
+    if (!secondsByDay.has(day)) secondsByDay.set(day, 0);
+  }
+
+  for (let index = 0; index < lightReadings.length - 1; index += 1) {
+    const current = lightReadings[index];
+    const next = lightReadings[index + 1];
+    const intervalSeconds = (next.timestamp - current.timestamp) / 1000;
+    if (intervalSeconds <= 0) continue;
+    if (intervalSeconds > MAX_SUNLIGHT_SAMPLE_GAP_SECONDS) {
+      skippedLongGaps += 1;
+      continue;
+    }
+    if (current.value <= SUNLIGHT_THRESHOLD_LUX || next.value <= SUNLIGHT_THRESHOLD_LUX) continue;
+
+    // A két egymást követő, küszöb feletti minta közötti időt a helyi napokhoz adjuk.
+    let cursor = current.timestamp;
+    while (cursor < next.timestamp) {
+      const day = budapestDate(new Date(cursor).toISOString());
+      const [year, month, date] = day.split("-").map(Number);
+      const nextCalendarDay = new Date(Date.UTC(year, month - 1, date + 1)).toISOString().slice(0, 10);
+      const midnight = budapestMidnightUtc(nextCalendarDay)?.getTime() ?? next.timestamp;
+      const segmentEnd = Math.min(next.timestamp, midnight);
+      secondsByDay.set(day, (secondsByDay.get(day) || 0) + (segmentEnd - cursor) / 1000);
+      cursor = segmentEnd;
+    }
+    countedIntervals += 1;
+  }
+
+  const dailyHours = Object.fromEntries(
+    [...secondsByDay].map(([day, seconds]) => [day, Number((seconds / 3600).toFixed(3))])
+  );
+  const totalSeconds = [...secondsByDay.values()].reduce((sum, seconds) => sum + seconds, 0);
+
+  return {
+    threshold_lux: SUNLIGHT_THRESHOLD_LUX,
+    comparison: "greater_than",
+    total_hours: Number((totalSeconds / 3600).toFixed(3)),
+    counted_intervals: countedIntervals,
+    skipped_long_gaps: skippedLongGaps,
+    daily_hours_budapest: dailyHours
+  };
 }
 
 async function getLatestSensorData() {
@@ -255,6 +367,10 @@ async function getSensorHistory(args) {
       fields.map((field) => [field, summarizeField(feeds, field)])
     )])
   );
+  const sunlightHours = calculateSunlightHours(feeds);
+  for (const [day, hours] of Object.entries(sunlightHours.daily_hours_budapest)) {
+    if (dailySummaries[day]) dailySummaries[day].sunshine_hours_above_threshold = hours;
+  }
 
   return {
     requested_hours: requestedHours,
@@ -267,6 +383,7 @@ async function getSensorHistory(args) {
     timezone: "Europe/Budapest",
     returned_records: feeds.length,
     possibly_truncated: feeds.length >= 8000,
+    sunshine_hours_above_threshold: sunlightHours,
     daily_budapest: dailySummaries,
     fields: summaries
   };

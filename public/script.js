@@ -11,6 +11,75 @@ const state = {
   chartRefreshTimer: null
 };
 
+const ACTIVITY_LOG_KEY = "greenhouse-activity-log";
+const ACTIVITY_LOG_LIMIT = 30;
+
+function getActivityLog() {
+  try {
+    const savedEntries = JSON.parse(localStorage.getItem(ACTIVITY_LOG_KEY) || "[]");
+    return Array.isArray(savedEntries) ? savedEntries : [];
+  } catch {
+    return [];
+  }
+}
+
+function renderActivityLog() {
+  const list = $("activityLogEntries");
+  if (!list) return;
+
+  const entries = getActivityLog();
+  list.replaceChildren();
+  if (entries.length === 0) {
+    const emptyItem = document.createElement("li");
+    emptyItem.className = "activity-log-empty";
+    emptyItem.textContent = "Még nincs rögzített esemény.";
+    list.append(emptyItem);
+    return;
+  }
+
+  const timeFormatter = new Intl.DateTimeFormat("hu-HU", {
+    timeZone: "Europe/Budapest",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+
+  entries.forEach((entry) => {
+    const item = document.createElement("li");
+    item.className = `activity-log-entry activity-log-${entry.level || "info"}`;
+
+    const time = document.createElement("time");
+    time.dateTime = entry.at;
+    time.textContent = timeFormatter.format(new Date(entry.at));
+
+    const message = document.createElement("span");
+    message.textContent = entry.message;
+    item.append(time, message);
+    list.append(item);
+  });
+}
+
+function addActivityLog(message, level = "info") {
+  const entries = getActivityLog();
+  entries.unshift({ at: new Date().toISOString(), message, level });
+  try {
+    localStorage.setItem(ACTIVITY_LOG_KEY, JSON.stringify(entries.slice(0, ACTIVITY_LOG_LIMIT)));
+  } catch {
+    // Ha a böngésző nem engedi a tárolást, a felület ettől még tovább működik.
+  }
+  renderActivityLog();
+}
+
+function setupActivityLog() {
+  renderActivityLog();
+  $("clearActivityLogBtn").addEventListener("click", () => {
+    localStorage.removeItem(ACTIVITY_LOG_KEY);
+    renderActivityLog();
+  });
+}
+
 const CHART_LABELS = {
   1: "Hőmérséklet előzményei",
   2: "Páratartalom előzményei",
@@ -25,12 +94,19 @@ const CHART_LABELS = {
 const CHART_UNITS = {
   1: "°C",
   2: "%",
-  3: "",
+  3: "hPa",
   4: "lux",
   5: "",
   6: "",
   7: "",
   8: ""
+};
+
+const CHART_STATE_LABELS = {
+  5: { 0: "Nem esik", 1: "Esik" },
+  6: { 0: "Ki", 1: "Be" },
+  7: { 0: "Ki", 1: "Be" },
+  8: { 0: "Zárva", 1: "Nyitva" }
 };
 
 let chartFeedsForResize = null;
@@ -147,12 +223,19 @@ function renderThingSpeakCharts(feeds) {
     const fieldNumber = chart.dataset.fieldChart;
     const label = CHART_LABELS[fieldNumber] || chart.title;
     const unit = CHART_UNITS[fieldNumber] || "";
+    const stateLabels = CHART_STATE_LABELS[fieldNumber];
+    const chartLabel = unit ? `${label} (${unit})` : stateLabels ? `${label} · állapot` : label;
+    const formatChartValue = (value) => {
+      if (stateLabels && (value === 0 || value === 1)) return stateLabels[value];
+      const formattedValue = new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 2 }).format(value);
+      return unit ? `${formattedValue} ${unit}` : formattedValue;
+    };
     const svg = document.createElementNS(svgNS, "svg");
     // A viewBox a kártya szélességéhez igazodik, így mobilon sem zsugorodnak össze a feliratok.
     svg.setAttribute("viewBox", `0 0 ${chartWidth} 270`);
     svg.setAttribute("preserveAspectRatio", "none");
     svg.setAttribute("role", "img");
-    svg.setAttribute("aria-label", label);
+    svg.setAttribute("aria-label", chartLabel);
 
     const addText = (text, x, y, className, anchor = "start") => {
       const element = document.createElementNS(svgNS, "text");
@@ -169,15 +252,15 @@ function renderThingSpeakCharts(feeds) {
     title.setAttribute("x", "24");
     title.setAttribute("y", "30");
     title.setAttribute("class", "chart-title");
-    title.textContent = label;
+    title.textContent = chartLabel;
     svg.append(title);
 
     const latestValue = readings.length
-      ? new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 2 }).format(readings[readings.length - 1].value)
+      ? formatChartValue(readings[readings.length - 1].value)
       : "—";
     addText(latestValue, chartWidth - 20, 30, "chart-value", "end");
 
-    const plot = { left: 58, right: chartWidth - 18, top: 76, bottom: 226 };
+    const plot = { left: stateLabels ? 114 : 58, right: chartWidth - 18, top: 76, bottom: 226 };
     const frame = document.createElementNS(svgNS, "rect");
     frame.setAttribute("x", String(plot.left));
     frame.setAttribute("y", String(plot.top));
@@ -187,19 +270,22 @@ function renderThingSpeakCharts(feeds) {
     svg.append(frame);
 
     const values = readings.map((reading) => reading.value);
-    let min = values.length ? Math.min(...values) : 0;
-    let max = values.length ? Math.max(...values) : 1;
+    let min = stateLabels ? 0 : values.length ? Math.min(...values) : 0;
+    let max = stateLabels ? 1 : values.length ? Math.max(...values) : 1;
     if (min === max) {
       const padding = Math.abs(min) * 0.1 || 1;
       min -= padding;
       max += padding;
     }
     const range = max - min || 1;
-    const tickCount = 4;
+    const tickCount = stateLabels ? 2 : 4;
 
     if (readings.length) {
       const summary = new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 2 });
-      addText(`Min. ${summary.format(min)}  ·  Max. ${summary.format(max)}`, 24, 53, "chart-summary");
+      const summaryText = stateLabels
+        ? `0 = ${stateLabels[0]}  ·  1 = ${stateLabels[1]}`
+        : `Min. ${summary.format(min)}${unit ? ` ${unit}` : ""}  ·  Max. ${summary.format(max)}${unit ? ` ${unit}` : ""}`;
+      addText(summaryText, 24, 53, "chart-summary");
     }
 
     for (let index = 0; index < tickCount; index += 1) {
@@ -213,7 +299,10 @@ function renderThingSpeakCharts(feeds) {
       gridLine.setAttribute("y2", y.toFixed(1));
       gridLine.setAttribute("class", "chart-grid-line");
       svg.append(gridLine);
-      addText(new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 1 }).format(tickValue), plot.left - 10, y + 4, "chart-axis-label", "end");
+      const axisLabel = stateLabels
+        ? stateLabels[Math.round(tickValue)]
+        : new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 1 }).format(tickValue);
+      addText(axisLabel, plot.left - 10, y + 4, "chart-axis-label", "end");
     }
 
     const xTickCount = Math.min(5, readings.length);
@@ -355,7 +444,7 @@ function renderThingSpeakCharts(feeds) {
         tooltipValue.setAttribute("x", (tooltipX + 12).toFixed(1));
         tooltipValue.setAttribute("y", (tooltipY + 44).toFixed(1));
         tooltipTime.textContent = formatBudapestTime(reading.timestamp);
-        tooltipValue.textContent = `${new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 2 }).format(reading.value)}${unit ? ` ${unit}` : ""}`;
+        tooltipValue.textContent = formatChartValue(reading.value);
         hoverIndicator.classList.add("is-visible");
       };
 
@@ -464,7 +553,8 @@ function renderReadings(entry) {
   setNumber("lightValue", fields.light);
   setMetric("heroTemperature", fields.temperature, "°C", 1);
   setMetric("heroHumidity", fields.humidity, "%");
-  $("heroPressure").textContent = fields.pressure === null ? "—" : formatted(fields.pressure, 1);
+  setMetric("heroPressure", fields.pressure, "hPa", 1);
+  setMetric("heroLight", fields.light, "lux");
 
   const raining = fields.rain === null ? null : fields.rain === 1;
   const fanOn = fields.fan === null ? null : fields.fan === 1;
@@ -472,6 +562,9 @@ function renderReadings(entry) {
   const roofOpen = fields.roofOpen === null ? null : fields.roofOpen === 1;
 
   $("heroRain").textContent = raining === null ? "—" : raining ? "Észlelve" : "Nem észlelhető";
+  $("heroFan").textContent = fanOn === null ? "—" : fanOn ? "Bekapcsolva" : "Kikapcsolva";
+  $("heroLed").textContent = ledOn === null ? "—" : ledOn ? "Bekapcsolva" : "Kikapcsolva";
+  $("heroRoof").textContent = roofOpen === null ? "—" : roofOpen ? "Nyitva" : "Zárva";
   setStateBadge("rainStatus", raining === null ? "Nincs adat" : raining ? "Esőt érzékel" : "Nem esik", raining === null ? "pending" : raining ? "warning" : "on");
   syncDemoSwitch("fanDemoSwitch", fanOn);
   syncDemoSwitch("ledDemoSwitch", ledOn);
@@ -502,12 +595,17 @@ async function loadLatestReadings({ quiet = false } = {}) {
     const feeds = Array.isArray(data.feeds) ? data.feeds : [];
     const entry = feeds.at(-1);
     if (!entry || !entry.created_at) throw new Error("A csatornából nem érkezett mérési adat.");
+    const previousMeasurement = state.lastEntry?.created_at;
     renderReadings(entry);
+    if (!quiet || entry.created_at !== previousMeasurement) {
+      addActivityLog("A ThingSpeak mérési adatai frissültek.", "success");
+    }
   } catch (error) {
     $("connectionStatus").textContent = "Nem elérhető";
     $("connectionStatus").className = "connection-pill disconnected";
     if (!state.lastEntry) $("lastUpdated").textContent = "Nem sikerült csatlakozni a ThingSpeak csatornához.";
     if (!quiet) addChatMessage("Rendszer", error.message || "Nem sikerült adatot betölteni a ThingSpeak csatornából.", "system");
+    if (!quiet) addActivityLog("Nem sikerült betölteni a legutóbbi szenzoradatokat.", "error");
     console.error("ThingSpeak read failed:", error);
   } finally {
     if (button) button.disabled = false;
@@ -552,11 +650,13 @@ async function loadChartHistory({ quiet = false } = {}) {
       ? rangeLabel
       : `utolsó: ${formatCompactBudapestTime(latestMeasurement)}`;
     status.textContent = `${new Intl.NumberFormat("hu-HU").format(feeds.length)} pont · ${periodSummary} · frissítve ${formatCompactBudapestTime(state.lastChartFetchedAt)}`;
+    if (!quiet) addActivityLog(`${rangeLabel}: ${feeds.length} mérési pont betöltve.`, "success");
   } catch (error) {
     const lastSuccess = state.lastChartFetchedAt
       ? ` Utolsó sikeres frissítés: ${formatBudapestTime(state.lastChartFetchedAt)}.`
       : "";
     status.textContent = `${error.message || "Nem sikerült betölteni a grafikonadatokat."}${lastSuccess}`;
+    if (!quiet) addActivityLog("Nem sikerült betölteni a grafikonadatokat.", "error");
     console.error("ThingSpeak chart history failed:", error);
   } finally {
     if (button) button.disabled = false;
@@ -824,7 +924,7 @@ function sensorContext() {
     fan_on: state.readings.fan === null ? null : state.readings.fan === 1,
     led_on: state.readings.led === null ? null : state.readings.led === 1,
     roof_open: state.readings.roofOpen === null ? null : state.readings.roofOpen === 1,
-    note: "ThingSpeak mezők: field1 hőmérséklet (°C), field2 páratartalom (%), field3 légnyomás (a firmware egysége nincs megadva), field4 megvilágítás (lux), field5 eső (1/0), field6 ventilátor (1/0), field7 LED (1/0), field8 tető (1/0)."
+    note: "ThingSpeak mezők: field1 hőmérséklet (°C), field2 páratartalom (%), field3 légnyomás (hPa), field4 megvilágítás (lux), field5 eső (1/0), field6 ventilátor (1/0), field7 LED (1/0), field8 tető (1/0)."
   };
 }
 
@@ -838,11 +938,11 @@ async function submitChat(event) {
   input.value = "";
 
   if (isSimpleGreeting(message)) {
-    addChatMessage("Növényházi asszisztens", "Szia! Miben segíthetek a növényházzal kapcsolatban?", "bot");
+    addChatMessage("Növényház okos kertésze", "Szia! Miben segíthetek a növényházzal kapcsolatban?", "bot");
     return;
   }
 
-  const reply = addChatMessage("Növényházi asszisztens", "Gondolkodom…", "bot");
+  const reply = addChatMessage("Növényház okos kertésze", "Gondolkodom…", "bot");
   $("sendChatBtn").disabled = true;
 
   try {
@@ -854,8 +954,10 @@ async function submitChat(event) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Az AI-kérés nem sikerült.");
     reply.textContent = cleanAssistantReply(data.reply || "Nem érkezett válasz.");
+    addActivityLog("Az AI-asszisztens válasza megérkezett.", "success");
   } catch (error) {
     reply.textContent = error.message || "Az asszisztens most nem érhető el. Ellenőrizd a szerver AI-beállításait, majd próbáld újra.";
+    addActivityLog("Az AI-asszisztens kérése nem sikerült.", "error");
     console.error("AI chat failed:", error);
   } finally {
     $("sendChatBtn").disabled = false;
@@ -965,22 +1067,82 @@ function setupChartControls() {
 
 // Beállítjuk a felület gombjait, majd elindítjuk az adatok frissítését.
 function initializeDashboard() {
+  setupActivityLog();
+  addActivityLog("A felügyeleti felület megnyílt.");
   setupTheme();
   setupWeather();
   setupNavigation();
   setupDemoSwitches();
   setupChartControls();
+  renderRegisteredDevices();
   $("refreshDataBtn").addEventListener("click", () => {
     loadLatestReadings();
     loadChartHistory({ quiet: true });
   });
   $("chatForm").addEventListener("submit", submitChat);
-  addChatMessage("Növényházi asszisztens", "Szia! A legutóbb betöltött növényházi mérések alapján tudok segíteni.", "bot");
+  addChatMessage("Növényház okos kertésze", "Szia! A legutóbb betöltött növényházi mérések alapján tudok segíteni.", "bot");
   loadLatestReadings();
   loadChartHistory({ quiet: true });
   state.refreshTimer = window.setInterval(() => loadLatestReadings({ quiet: true }), REFRESH_INTERVAL_MS);
   state.chartRefreshTimer = window.setInterval(() => loadChartHistory({ quiet: true }), CHART_REFRESH_INTERVAL_MS);
 }
+
+function renderRegisteredDevices() {
+  const list = $("registeredDeviceList");
+  if (!list) return;
+
+  const typeLabels = {
+    Temperature: "Hőmérséklet",
+    Humidity: "Páratartalom",
+    "Soil Moisture": "Talajnedvesség",
+    Rain: "Esőérzékelő",
+    Fan: "Ventilátor",
+    "Air Pressure": "Légnyomás",
+    Light: "Megvilágítás",
+    Thermostat: "Termosztát",
+    Security: "Biztonsági érzékelő",
+    LED: "LED-világítás",
+    Servo: "Szervomotor",
+    Other: "Egyéb"
+  };
+
+  let devices = [];
+  try {
+    const savedDevices = JSON.parse(localStorage.getItem("smartHomeDevices") || "[]");
+    devices = Array.isArray(savedDevices) ? savedDevices : [];
+  } catch {
+    devices = [];
+  }
+
+  list.replaceChildren();
+  if (devices.length === 0) {
+    const emptyMessage = document.createElement("p");
+    emptyMessage.className = "muted registered-device-empty";
+    emptyMessage.textContent = "Még nincs felvett eszköz.";
+    list.append(emptyMessage);
+    return;
+  }
+
+  devices.forEach((device) => {
+    if (!device || typeof device !== "object") return;
+    const item = document.createElement("article");
+    const name = document.createElement("h4");
+    const details = document.createElement("p");
+    item.className = "registered-device-item";
+    name.textContent = device.name || "Névtelen eszköz";
+    const type = typeLabels[device.type] || device.type || "Típus nincs megadva";
+    const field = device.field || device.thingSpeakField;
+    const location = device.location;
+    details.textContent = [type, field ? `ThingSpeak-mező ${field}` : "Nincs ThingSpeak-mező", location].filter(Boolean).join(" · ");
+    item.append(name, details);
+    list.append(item);
+  });
+}
+
+window.addEventListener("storage", (event) => {
+  if (event.key === "smartHomeDevices") renderRegisteredDevices();
+});
+window.addEventListener("pageshow", renderRegisteredDevices);
 
 function showDashboard() {
   $("loginScreen").hidden = true;
@@ -1035,6 +1197,7 @@ function setupAuthentication() {
       if (!response.ok) throw new Error(result.error || "Nem sikerült bejelentkezni.");
       loginForm.reset();
       showDashboard();
+      addActivityLog("Sikeres bejelentkezés.", "success");
     } catch (error) {
       setLoginMessage(error.message || "Nem sikerült bejelentkezni.");
     } finally {
@@ -1046,6 +1209,7 @@ function setupAuthentication() {
     try {
       const response = await fetch("/api/auth", { method: "DELETE" });
       if (!response.ok) throw new Error("Nem sikerült kijelentkezni.");
+      addActivityLog("Kijelentkezés.");
       window.location.reload();
     } catch (error) {
       setLoginMessage(error.message || "Nem sikerült kijelentkezni.");
