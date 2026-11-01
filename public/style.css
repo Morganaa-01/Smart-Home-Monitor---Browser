@@ -1283,11 +1283,30 @@ footer {
 @media (max-width: 760px) {
   .navbar {
     border-radius: 26px;
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .navbar .logo {
+    order: 1;
+    margin-right: auto;
+  }
+
+  .navbar .menu-toggle {
+    order: 2;
+    margin-left: auto;
+  }
+
+  .navbar #themeToggle.theme-toggle-icon {
+    order: 3;
+    width: 44px;
+    min-width: 44px;
+    margin-left: 0.25rem;
   }
 
   .nav-links {
+    order: 4;
     position: static;
     width: 100%;
     display: none;
@@ -1308,10 +1327,6 @@ footer {
     background: var(--card-color);
     color: var(--text-color);
     border: 1px solid var(--border-color);
-  }
-
-  .theme-toggle {
-    width: 100%;
   }
 
   .dropdown {
