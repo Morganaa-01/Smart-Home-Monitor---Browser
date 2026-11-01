@@ -282,6 +282,21 @@ function setupNavigation() {
   }));
 }
 
+function setupLogout() {
+  const logoutButton = document.getElementById("logoutBtn");
+  if (!logoutButton) return;
+
+  logoutButton.addEventListener("click", async () => {
+    try {
+      const response = await fetch("/api/auth", { method: "DELETE" });
+      if (!response.ok) throw new Error("Nem sikerült kijelentkezni.");
+      window.location.replace("index.html");
+    } catch (error) {
+      deviceMessage.textContent = error.message || "Nem sikerült kijelentkezni.";
+    }
+  });
+}
+
 async function initializeDevicePage() {
   try {
     const response = await fetch("/api/auth", { cache: "no-store" });
@@ -294,6 +309,7 @@ async function initializeDevicePage() {
     document.getElementById("devicePageContent").hidden = false;
     setupTheme();
     setupNavigation();
+    setupLogout();
     renderDevices();
   } catch {
     window.location.replace("index.html");
