@@ -32,7 +32,7 @@ function isHistoricalDataQuestion(message) {
   if (isLastRainQuestion(message)) return true;
   if (extractBudapestDates(message).length > 0) return true;
   const asksAboutTime = /tegnap\w*|tegnapelőtt\w*|ma\w*|elmúlt\w*|utolsó\w*|trend\w*|átlag\w*|minimum\w*|maximum\w*|változás\w*|összehasonlít\w*|időbeli\w*/i.test(message);
-  const asksAboutGreenhouseData = /adat\w*|mérés\w*|hőmérséklet\w*|páratartalom\w*|légnyomás\w*|megvilágítás\w*|lux\b|eső\w*|ventilátor\w*|led\b|tető\w*|szenzor\w*/i.test(message);
+  const asksAboutGreenhouseData = /adat\w*|mérés\w*|hőmérséklet\w*|páratartalom\w*|légnyomás\w*|megvilágítás\w*|lux\b|napsütés\w*|napfény\w*|világos ór\w*|eső\w*|ventilátor\w*|led\b|tető\w*|szenzor\w*/i.test(message);
   return asksAboutTime && asksAboutGreenhouseData;
 }
 
@@ -70,12 +70,19 @@ async function getRequestedDaySummaries(dates) {
       field: "all"
     });
     const daily = result.daily_budapest[date] || null;
-    const fields = daily && Object.fromEntries(Object.entries(daily).map(([field, summary]) => {
-      if (!summary) return [field, null];
-      const { samples, ...statistics } = summary;
-      return [field, statistics];
-    }));
-    return { date, returned_records: result.returned_records, fields };
+    const fields = daily && Object.fromEntries(Object.entries(daily)
+      .filter(([field]) => field !== "sunshine_hours_above_threshold")
+      .map(([field, summary]) => {
+        if (!summary) return [field, null];
+        const { samples, ...statistics } = summary;
+        return [field, statistics];
+      }));
+    return {
+      date,
+      returned_records: result.returned_records,
+      fields,
+      sunshine_hours_above_threshold: daily?.sunshine_hours_above_threshold ?? null
+    };
   }));
 
   return {
@@ -102,6 +109,7 @@ async function getLastRainSummary() {
     field: "field5",
     sensor: "rain_sensor",
     last_active_at_budapest: rain?.last_active_at_budapest || null,
+    last_active_event: rain?.last_active_event || null,
     active_samples: rain?.active_samples ?? 0,
     total_samples: rain?.count ?? 0
   };
@@ -115,8 +123,7 @@ function formatLastRainReply(summary) {
     return "A lekért előzményidőszakban az esőérzékelő nem rögzített aktív jelzést.";
   }
 
-  const date = new Date(summary.last_active_at_budapest);
-  const formattedTime = new Intl.DateTimeFormat("hu-HU", {
+  const formatDateTime = (timestamp) => new Intl.DateTimeFormat("hu-HU", {
     timeZone: "Europe/Budapest",
     year: "numeric",
     month: "long",
@@ -124,8 +131,20 @@ function formatLastRainReply(summary) {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23"
-  }).format(date);
-  return `A lekért ThingSpeak-előzményekben az esőérzékelő legutóbb ${formattedTime}-kor jelzett (budapesti idő szerint). Ez az érzékelő jelzése; önmagában nem bizonyítja, hogy ténylegesen esett az eső.`;
+  }).format(new Date(timestamp));
+  const event = summary.last_active_event;
+  if (!event) {
+    return `Az esőérzékelő legutóbb ${formatDateTime(summary.last_active_at_budapest)}-kor jelzett. A mező csak eső/nincs eső állapotot tárol, ezért a csapadék mennyisége milliméterben nem állapítható meg.`;
+  }
+
+  const durationMinutes = event.estimated_duration_seconds / 60;
+  const durationText = durationMinutes < 1
+    ? `körülbelül ${Math.max(1, Math.round(event.estimated_duration_seconds))} másodpercig`
+    : `körülbelül ${new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 1 }).format(durationMinutes)} percig`;
+  const durationDescription = event.is_active_at_end
+    ? `eddig ${durationText} tart (becslés)`
+    : `${durationText} tartott (becslés)`;
+  return `Az esőérzékelő legutóbbi aktív időszaka ${formatDateTime(event.started_at_budapest)}-kor kezdődött; az utolsó aktív minta ${formatDateTime(event.last_active_at_budapest)}-kor érkezett. A jelzés ${durationDescription} ${event.active_samples} ThingSpeak-minta alapján, budapesti idő szerint. A field5 csak esik/nem esik állapotot rögzít, ezért a csapadék mennyisége milliméterben nem állapítható meg.`;
 }
 
 function buildUserInput(message, sensorContext, historyResult = null) {
