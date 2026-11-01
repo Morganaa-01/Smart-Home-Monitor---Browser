@@ -115,6 +115,36 @@ let chartCustomRangeActive = false;
 
 const $ = (id) => document.getElementById(id);
 
+const SUMMARY_STORAGE_KEY = "greenhouse-summary-rows";
+const SUMMARY_ROWS = [
+  { key: "temperature", label: "Hőmérséklet · BME280" },
+  { key: "humidity", label: "Páratartalom · BME280" },
+  { key: "pressure", label: "Légnyomás · BME280" },
+  { key: "light", label: "Megvilágítás · TSL2561" },
+  { key: "rain", label: "Esőérzékelő" },
+  { key: "fan", label: "Ventilátor" },
+  { key: "led", label: "Kiegészítő LED" },
+  { key: "roof", label: "Növényház teteje" }
+];
+
+const DEFAULT_SUMMARY_ORDER = SUMMARY_ROWS.map((row) => row.key);
+
+const METRIC_CARDS = [
+  { key: "temperature", label: "Hőmérséklet" },
+  { key: "humidity", label: "Relatív páratartalom" },
+  { key: "pressure", label: "Légnyomás" },
+  { key: "light", label: "Megvilágítás" },
+  { key: "rain", label: "Esőérzékelő" },
+  { key: "fan", label: "Ventilátor" },
+  { key: "led", label: "Kiegészítő LED" },
+  { key: "roof", label: "Növényház teteje" }
+];
+const DEFAULT_METRIC_ORDER = METRIC_CARDS.slice(0, 4).map((item) => item.key);
+const METRIC_STORAGE_KEY = "greenhouse-metric-cards";
+const CHART_STORAGE_KEY = "greenhouse-chart-fields";
+const DEFAULT_CHART_FIELDS = [1, 2, 3, 4, 5, 6, 7, 8];
+const MAX_CHART_SLOTS = 8;
+
 // ------------------------------ Grafikonsegédek -----------------------------
 
 // A ThingSpeak időpontjai UTC-ben vannak, a felületen budapesti időt mutatunk.
@@ -555,6 +585,10 @@ function renderReadings(entry) {
   setMetric("heroHumidity", fields.humidity, "%");
   setMetric("heroPressure", fields.pressure, "hPa", 1);
   setMetric("heroLight", fields.light, "lux");
+  $("metricRainValue").textContent = fields.rain === null ? "—" : fields.rain === 1 ? "Esőt érzékel" : "Nem esik";
+  $("metricFanValue").textContent = fields.fan === null ? "—" : fields.fan === 1 ? "Bekapcsolva" : "Kikapcsolva";
+  $("metricLedValue").textContent = fields.led === null ? "—" : fields.led === 1 ? "Bekapcsolva" : "Kikapcsolva";
+  $("metricRoofValue").textContent = fields.roofOpen === null ? "—" : fields.roofOpen === 1 ? "Nyitva" : "Zárva";
 
   const raining = fields.rain === null ? null : fields.rain === 1;
   const fanOn = fields.fan === null ? null : fields.fan === 1;
@@ -1074,7 +1108,9 @@ function initializeDashboard() {
   setupNavigation();
   setupDemoSwitches();
   setupChartControls();
-  renderRegisteredDevices();
+  setupSummaryEditor();
+  setupMetricEditor();
+  setupChartEditor();
   $("refreshDataBtn").addEventListener("click", () => {
     loadLatestReadings();
     loadChartHistory({ quiet: true });
@@ -1087,62 +1123,430 @@ function initializeDashboard() {
   state.chartRefreshTimer = window.setInterval(() => loadChartHistory({ quiet: true }), CHART_REFRESH_INTERVAL_MS);
 }
 
-function renderRegisteredDevices() {
-  const list = $("registeredDeviceList");
-  if (!list) return;
+function setupSummaryEditor() {
+  const toggle = $("summarySettingsToggle");
+  const panel = $("summarySettings");
+  const list = $("summaryConfigList");
+  const select = $("summaryRowSelect");
+  const addButton = $("addSummaryRowBtn");
+  const rowsContainer = $("latestMetricRows");
+  if (!toggle || !panel || !list || !select || !addButton || !rowsContainer) return;
 
-  const typeLabels = {
-    Temperature: "Hőmérséklet",
-    Humidity: "Páratartalom",
-    "Soil Moisture": "Talajnedvesség",
-    Rain: "Esőérzékelő",
-    Fan: "Ventilátor",
-    "Air Pressure": "Légnyomás",
-    Light: "Megvilágítás",
-    Thermostat: "Termosztát",
-    Security: "Biztonsági érzékelő",
-    LED: "LED-világítás",
-    Servo: "Szervomotor",
-    Other: "Egyéb"
-  };
-
-  let devices = [];
+  let order = DEFAULT_SUMMARY_ORDER;
   try {
-    const savedDevices = JSON.parse(localStorage.getItem("smartHomeDevices") || "[]");
-    devices = Array.isArray(savedDevices) ? savedDevices : [];
+    const savedOrder = JSON.parse(localStorage.getItem(SUMMARY_STORAGE_KEY));
+    if (Array.isArray(savedOrder)) {
+      order = savedOrder.filter((key, index) =>
+        SUMMARY_ROWS.some((row) => row.key === key) && savedOrder.indexOf(key) === index
+      );
+    }
   } catch {
-    devices = [];
+    order = DEFAULT_SUMMARY_ORDER;
   }
 
-  list.replaceChildren();
-  if (devices.length === 0) {
-    const emptyMessage = document.createElement("p");
-    emptyMessage.className = "muted registered-device-empty";
-    emptyMessage.textContent = "Még nincs felvett eszköz.";
-    list.append(emptyMessage);
-    return;
+  let draggedKey = null;
+  let isOpen = false;
+
+  function updateRows() {
+    const rows = new Map(
+      [...rowsContainer.querySelectorAll("[data-summary-key]")]
+        .map((row) => [row.dataset.summaryKey, row])
+    );
+    order.forEach((key) => {
+      const row = rows.get(key);
+      if (!row) return;
+      row.hidden = false;
+      rowsContainer.append(row);
+      rows.delete(key);
+    });
+    rows.forEach((row) => {
+      row.hidden = true;
+      rowsContainer.append(row);
+    });
   }
 
-  devices.forEach((device) => {
-    if (!device || typeof device !== "object") return;
-    const item = document.createElement("article");
-    const name = document.createElement("h4");
-    const details = document.createElement("p");
-    item.className = "registered-device-item";
-    name.textContent = device.name || "Névtelen eszköz";
-    const type = typeLabels[device.type] || device.type || "Típus nincs megadva";
-    const field = device.field || device.thingSpeakField;
-    const location = device.location;
-    details.textContent = [type, field ? `ThingSpeak-mező ${field}` : "Nincs ThingSpeak-mező", location].filter(Boolean).join(" · ");
-    item.append(name, details);
-    list.append(item);
+  function updateSelect() {
+    select.replaceChildren();
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Eszközsor kiválasztása";
+    select.append(placeholder);
+
+    SUMMARY_ROWS.filter((row) => !order.includes(row.key)).forEach((row) => {
+      const option = document.createElement("option");
+      option.value = row.key;
+      option.textContent = row.label;
+      select.append(option);
+    });
+    select.disabled = select.options.length === 1;
+    addButton.disabled = select.disabled;
+  }
+
+  function saveOrder(nextOrder) {
+    order = nextOrder;
+    localStorage.setItem(SUMMARY_STORAGE_KEY, JSON.stringify(order));
+    updateRows();
+    renderEditorList();
+  }
+
+  function moveRow(fromKey, toKey) {
+    if (!fromKey || !toKey || fromKey === toKey) return;
+    const nextOrder = [...order];
+    const fromIndex = nextOrder.indexOf(fromKey);
+    const toIndex = nextOrder.indexOf(toKey);
+    if (fromIndex < 0 || toIndex < 0) return;
+    nextOrder.splice(fromIndex, 1);
+    nextOrder.splice(toIndex, 0, fromKey);
+    saveOrder(nextOrder);
+  }
+
+  function renderEditorList() {
+    list.replaceChildren();
+    order.forEach((key, index) => {
+      const rowInfo = SUMMARY_ROWS.find((row) => row.key === key);
+      if (!rowInfo) return;
+
+      const item = document.createElement("li");
+      item.className = "summary-config-item";
+      item.draggable = true;
+      item.dataset.summaryKey = key;
+
+      const grip = document.createElement("span");
+      grip.className = "material-symbols-rounded summary-drag-icon";
+      grip.textContent = "drag_indicator";
+      grip.setAttribute("aria-hidden", "true");
+
+      const label = document.createElement("span");
+      label.className = "summary-config-label";
+      label.textContent = rowInfo.label;
+
+      const actions = document.createElement("div");
+      actions.className = "summary-config-actions";
+
+      const upButton = document.createElement("button");
+      upButton.type = "button";
+      upButton.className = "icon-button summary-config-button";
+      upButton.disabled = index === 0;
+      upButton.setAttribute("aria-label", `${rowInfo.label} mozgatása feljebb`);
+      upButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">arrow_upward</span>';
+      upButton.addEventListener("click", () => moveRow(key, order[index - 1]));
+
+      const downButton = document.createElement("button");
+      downButton.type = "button";
+      downButton.className = "icon-button summary-config-button";
+      downButton.disabled = index === order.length - 1;
+      downButton.setAttribute("aria-label", `${rowInfo.label} mozgatása lejjebb`);
+      downButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">arrow_downward</span>';
+      downButton.addEventListener("click", () => moveRow(key, order[index + 1]));
+
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "icon-button summary-config-button summary-remove-button";
+      removeButton.setAttribute("aria-label", `${rowInfo.label} eltávolítása a főoldalról`);
+      removeButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">close</span>';
+      removeButton.addEventListener("click", () => saveOrder(order.filter((itemKey) => itemKey !== key)));
+
+      actions.append(upButton, downButton, removeButton);
+      item.append(grip, label, actions);
+
+      item.addEventListener("dragstart", (event) => {
+        draggedKey = key;
+        item.classList.add("is-dragging");
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", key);
+      });
+      item.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+      });
+      item.addEventListener("drop", (event) => {
+        event.preventDefault();
+        moveRow(draggedKey || event.dataTransfer.getData("text/plain"), key);
+      });
+      item.addEventListener("dragend", () => {
+        draggedKey = null;
+        item.classList.remove("is-dragging");
+      });
+
+      list.append(item);
+    });
+    updateSelect();
+  }
+
+  toggle.addEventListener("click", () => {
+    isOpen = !isOpen;
+    panel.hidden = !isOpen;
+    $("metricSettings").hidden = !isOpen;
+    $("chartEditHint").hidden = !isOpen;
+    document.body.classList.toggle("homepage-editing", isOpen);
+    toggle.setAttribute("aria-expanded", String(isOpen));
+    toggle.classList.toggle("is-active", isOpen);
   });
+
+  addButton.addEventListener("click", () => {
+    if (!select.value || order.includes(select.value)) return;
+    saveOrder([...order, select.value]);
+  });
+
+  updateRows();
+  renderEditorList();
 }
 
-window.addEventListener("storage", (event) => {
-  if (event.key === "smartHomeDevices") renderRegisteredDevices();
-});
-window.addEventListener("pageshow", renderRegisteredDevices);
+function setupMetricEditor() {
+  const grid = document.querySelector(".greenhouse-grid");
+  const list = $("metricConfigList");
+  const select = $("metricRowSelect");
+  const addButton = $("addMetricRowBtn");
+  if (!grid || !list || !select || !addButton) return;
+
+  let order = DEFAULT_METRIC_ORDER;
+  try {
+    const saved = JSON.parse(localStorage.getItem(METRIC_STORAGE_KEY));
+    if (Array.isArray(saved)) {
+      order = saved.filter((key, index) =>
+        METRIC_CARDS.some((item) => item.key === key) && saved.indexOf(key) === index
+      );
+    }
+  } catch {
+    order = DEFAULT_METRIC_ORDER;
+  }
+
+  let draggedKey = null;
+
+  function applyOrder() {
+    const cards = new Map(
+      [...grid.querySelectorAll("[data-metric-card]")]
+        .map((card) => [card.dataset.metricCard, card])
+    );
+    order.forEach((key) => {
+      const card = cards.get(key);
+      if (!card) return;
+      card.hidden = false;
+      grid.append(card);
+      cards.delete(key);
+    });
+    cards.forEach((card) => {
+      card.hidden = true;
+      grid.append(card);
+    });
+  }
+
+  function updateSelect() {
+    select.replaceChildren();
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Mérőkártya kiválasztása";
+    select.append(placeholder);
+    METRIC_CARDS.filter((item) => !order.includes(item.key)).forEach((item) => {
+      const option = document.createElement("option");
+      option.value = item.key;
+      option.textContent = item.label;
+      select.append(option);
+    });
+    select.disabled = select.options.length === 1;
+    addButton.disabled = select.disabled;
+  }
+
+  function saveOrder(nextOrder) {
+    order = nextOrder;
+    localStorage.setItem(METRIC_STORAGE_KEY, JSON.stringify(order));
+    applyOrder();
+    renderList();
+  }
+
+  function moveCard(fromKey, toKey) {
+    if (!fromKey || !toKey || fromKey === toKey) return;
+    const next = [...order];
+    const from = next.indexOf(fromKey);
+    const to = next.indexOf(toKey);
+    if (from < 0 || to < 0) return;
+    next.splice(from, 1);
+    next.splice(to, 0, fromKey);
+    saveOrder(next);
+  }
+
+  function renderList() {
+    list.replaceChildren();
+    order.forEach((key, index) => {
+      const itemInfo = METRIC_CARDS.find((item) => item.key === key);
+      if (!itemInfo) return;
+      const item = document.createElement("li");
+      item.className = "summary-config-item";
+      item.draggable = true;
+
+      const grip = document.createElement("span");
+      grip.className = "material-symbols-rounded summary-drag-icon";
+      grip.textContent = "drag_indicator";
+      grip.setAttribute("aria-hidden", "true");
+
+      const label = document.createElement("span");
+      label.className = "summary-config-label";
+      label.textContent = itemInfo.label;
+
+      const actions = document.createElement("div");
+      actions.className = "summary-config-actions";
+      const makeMoveButton = (icon, direction, target) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "icon-button summary-config-button";
+        button.disabled = !target;
+        button.setAttribute("aria-label", `${itemInfo.label} mozgatása ${direction}`);
+        button.innerHTML = `<span class="material-symbols-rounded" aria-hidden="true">${icon}</span>`;
+        button.addEventListener("click", () => moveCard(key, target));
+        return button;
+      };
+      actions.append(
+        makeMoveButton("arrow_upward", "feljebb", order[index - 1]),
+        makeMoveButton("arrow_downward", "lejjebb", order[index + 1])
+      );
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "icon-button summary-config-button summary-remove-button";
+      remove.setAttribute("aria-label", `${itemInfo.label} eltávolítása a mérőkártyák közül`);
+      remove.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">close</span>';
+      remove.addEventListener("click", () => saveOrder(order.filter((itemKey) => itemKey !== key)));
+      actions.append(remove);
+      item.append(grip, label, actions);
+
+      item.addEventListener("dragstart", (event) => {
+        draggedKey = key;
+        item.classList.add("is-dragging");
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", key);
+      });
+      item.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+      });
+      item.addEventListener("drop", (event) => {
+        event.preventDefault();
+        moveCard(draggedKey || event.dataTransfer.getData("text/plain"), key);
+      });
+      item.addEventListener("dragend", () => {
+        draggedKey = null;
+        item.classList.remove("is-dragging");
+      });
+      list.append(item);
+    });
+    updateSelect();
+  }
+
+  addButton.addEventListener("click", () => {
+    if (!select.value || order.includes(select.value)) return;
+    saveOrder([...order, select.value]);
+  });
+
+  applyOrder();
+  renderList();
+}
+
+function setupChartEditor() {
+  const grid = $("chartGrid");
+  if (!grid) return;
+
+  let fields = DEFAULT_CHART_FIELDS;
+  try {
+    const saved = JSON.parse(localStorage.getItem(CHART_STORAGE_KEY));
+    if (Array.isArray(saved)) {
+      fields = saved
+        .map(Number)
+        .filter((field, index) => Number.isInteger(field) && field >= 1 && field <= 8 && saved.indexOf(field) === index)
+        .slice(0, MAX_CHART_SLOTS);
+    }
+  } catch {
+    fields = DEFAULT_CHART_FIELDS;
+  }
+
+  const chartNames = {
+    1: "Hőmérséklet",
+    2: "Páratartalom",
+    3: "Légnyomás",
+    4: "Megvilágítás",
+    5: "Esőérzékelő",
+    6: "Ventilátor",
+    7: "LED",
+    8: "Növényház teteje"
+  };
+
+  function saveFields(nextFields) {
+    fields = [...new Set(nextFields)].slice(0, MAX_CHART_SLOTS);
+    localStorage.setItem(CHART_STORAGE_KEY, JSON.stringify(fields));
+    renderSlots();
+    if (chartFeedsForResize) renderThingSpeakCharts(chartFeedsForResize);
+  }
+
+  function renderSlots() {
+    grid.replaceChildren();
+    fields.forEach((field) => {
+      const tile = document.createElement("article");
+      tile.className = "chart-tile";
+      tile.dataset.chartTile = String(field);
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "icon-button chart-remove-button";
+      remove.setAttribute("aria-label", `${chartNames[field]} grafikon eltávolítása`);
+      remove.title = "Grafikon eltávolítása";
+      remove.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">close</span>';
+      remove.addEventListener("click", () => saveFields(fields.filter((item) => item !== field)));
+
+      const chart = document.createElement("div");
+      chart.className = "thingspeak-chart";
+      chart.dataset.fieldChart = String(field);
+      chart.title = `${chartNames[field]} előzményei`;
+      tile.append(remove, chart);
+      grid.append(tile);
+    });
+
+    const availableFields = DEFAULT_CHART_FIELDS.filter((field) => !fields.includes(field));
+    for (let slot = fields.length; slot < MAX_CHART_SLOTS; slot += 1) {
+      const tile = document.createElement("article");
+      tile.className = "chart-add-tile";
+      const addButton = document.createElement("button");
+      addButton.type = "button";
+      addButton.className = "chart-add-trigger";
+      addButton.setAttribute("aria-label", "Grafikon hozzáadása");
+      addButton.title = "Grafikon hozzáadása";
+      addButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">add</span>';
+
+      const picker = document.createElement("div");
+      picker.className = "chart-add-picker";
+      picker.hidden = true;
+      const select = document.createElement("select");
+      select.setAttribute("aria-label", "Hozzáadható ThingSpeak-mező");
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Válassz mérési adatot";
+      select.append(placeholder);
+      availableFields.forEach((field) => {
+        const option = document.createElement("option");
+        option.value = String(field);
+        option.textContent = chartNames[field];
+        select.append(option);
+      });
+      const confirm = document.createElement("button");
+      confirm.type = "button";
+      confirm.className = "button secondary chart-add-confirm";
+      confirm.textContent = "Hozzáadás";
+      confirm.disabled = availableFields.length === 0;
+      confirm.addEventListener("click", () => {
+        const field = Number(select.value);
+        if (!field || fields.includes(field)) return;
+        saveFields([...fields, field]);
+      });
+      picker.append(select, confirm);
+      addButton.addEventListener("click", () => {
+        picker.hidden = !picker.hidden;
+        addButton.setAttribute("aria-expanded", String(!picker.hidden));
+      });
+      tile.append(addButton, picker);
+      grid.append(tile);
+    }
+  }
+
+  renderSlots();
+}
 
 function showDashboard() {
   $("loginScreen").hidden = true;
