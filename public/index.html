@@ -45,7 +45,9 @@
         <span class="logo-icon material-symbols-rounded" aria-hidden="true">eco</span>
         <span>Okos Növényház</span>
       </a>
-      <button class="menu-toggle" id="menuToggle" type="button" aria-label="Menü megnyitása" aria-expanded="false">☰</button>
+      <button class="menu-toggle" id="menuToggle" type="button" aria-label="Menü megnyitása" aria-expanded="false">
+        <span class="material-symbols-rounded" aria-hidden="true">menu</span>
+      </button>
       <ul class="nav-links" id="navLinks">
         <li><a href="#dashboardSection">Áttekintés</a></li>
         <li><a href="#weatherSection">Kinti időjárás</a></li>
@@ -158,17 +160,46 @@
     <section class="section" id="thingspeak">
       <div class="section-heading"><div><p class="eyebrow">ThingSpeak · ESP32</p><h2>Mérési előzmények</h2><p class="muted">A grafikonok a firmware jelenlegi mezőkiosztását követik.</p></div></div>
       <div class="chart-toolbar" aria-label="Grafikon beállításai">
-        <label for="chartRangeSelect">Megjelenített időszak</label>
-        <select id="chartRangeSelect">
-          <option value="results:60">Utolsó 60 mérés</option>
-          <option value="results:200">Utolsó 200 mérés</option>
-          <option value="days:1">Utolsó 24 óra</option>
-          <option value="days:7">Utolsó 7 nap</option>
-          <option value="days:30">Utolsó 30 nap</option>
-          <option value="results:8000">Összes elérhető mérés (max. 8000)</option>
-          <option value="period:september-demo-2026">Szeptemberi demóadatok (Budapest)</option>
-        </select>
-        <button class="button secondary" id="refreshChartsBtn" type="button">Grafikonok frissítése</button>
+        <button class="button secondary chart-filter-toggle" id="chartFilterToggle" type="button" aria-controls="chartFilterPanel" aria-expanded="false">
+          <span class="material-symbols-rounded" aria-hidden="true">filter_alt</span>
+          <span>Szűrés</span>
+        </button>
+        <button class="button secondary chart-refresh-button" id="refreshChartsBtn" type="button">
+          <span class="material-symbols-rounded" aria-hidden="true">refresh</span>
+          <span>Frissítés</span>
+        </button>
+        <div class="chart-filter-panel" id="chartFilterPanel" hidden>
+          <label for="chartRangeSelect">Gyors időszak
+            <select id="chartRangeSelect">
+              <option value="" disabled>Válassz egy időszakot</option>
+              <option value="results:60">Utolsó 60 mérés</option>
+              <option value="results:200">Utolsó 200 mérés</option>
+              <option value="days:1">Utolsó 24 óra</option>
+              <option value="days:7">Utolsó 7 nap</option>
+              <option value="days:30">Utolsó 30 nap</option>
+              <option value="results:8000">Összes elérhető mérés (max. 8000)</option>
+            </select>
+          </label>
+          <form class="chart-custom-range" id="chartCustomRange">
+            <div class="chart-filter-heading">
+              <span class="material-symbols-rounded" aria-hidden="true">schedule</span>
+              <div>
+                <strong>Egyéni időszak</strong>
+                <p>Válassz kezdő és záró időpontot a grafikonhoz.</p>
+              </div>
+            </div>
+            <label for="chartStartDate">Kezdő időpont
+              <input id="chartStartDate" type="datetime-local" lang="hu-HU" required>
+            </label>
+            <label for="chartEndDate">Záró időpont
+              <input id="chartEndDate" type="datetime-local" lang="hu-HU" required>
+            </label>
+            <button class="button primary chart-apply-filter" type="submit">
+              <span class="material-symbols-rounded" aria-hidden="true">done</span>
+              <span>Szűrés alkalmazása</span>
+            </button>
+          </form>
+        </div>
       </div>
       <p class="chart-status muted" id="chartStatus" role="status" aria-live="polite">Grafikonadatok betöltése…</p>
       <div class="chart-grid greenhouse-charts">
