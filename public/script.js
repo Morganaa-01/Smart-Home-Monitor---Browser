@@ -1552,6 +1552,19 @@ function showDashboard() {
   $("loginScreen").hidden = true;
   $("appShell").hidden = false;
   initializeDashboard();
+
+  // A főoldal a bejelentkezés után válik láthatóvá, ezért a célpontra ezután görgetünk.
+  const targetId = window.location.hash.slice(1);
+  if (!targetId) return;
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const target = document.getElementById(targetId);
+    if (!target) return;
+
+    const navbarHeight = document.querySelector(".navbar")?.offsetHeight || 0;
+    const top = target.getBoundingClientRect().top + window.scrollY - navbarHeight - 24;
+    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  }));
 }
 
 function setLoginMessage(message) {
