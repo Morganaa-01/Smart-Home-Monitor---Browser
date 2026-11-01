@@ -96,16 +96,17 @@
         </div>
         <p class="weather-updated muted" id="weatherUpdated"></p>
       </div>
-      <p class="weather-attribution muted">Időjárási adatok: <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>. A helymeghatározás csak a gomb megnyomása és engedélyezés után fut; a koordinátákat az időjárás-lekérdezéshez továbbítja.</p>
+      <p class="weather-attribution muted">Időjárási adatok: <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>. Helynév: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a> (<a href="https://operations.osmfoundation.org/policies/nominatim/" target="_blank" rel="noreferrer">Nominatim használati feltételek</a>). A koordináták csak a saját helyzet gomb megnyomása és engedélyezése után jutnak el az időjárás- és helynévszolgáltatáshoz.</p>
     </section>
 
     <section class="card system-card" id="automationSection">
       <div class="section-heading"><div><p class="eyebrow">Helyi automatika</p><h2>Beavatkozók állapota</h2></div><span class="mode-pill">Vezérlés az ESP32-n</span></div>
       <p class="muted">A mikrovezérlő a szenzorok alapján, helyben futtatja a szabályokat. Ez az oldal az utolsó feltöltött állapotot mutatja.</p>
+      <p class="device-control-note">A kapcsolók most csak felületi próbák, nem küldenek parancsot az ESP32-nek.</p>
       <div class="device-grid greenhouse-devices">
-        <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">mode_fan</span><h3>Ventilátor</h3><p id="fanStatus" class="status status-pending">Nincs adat</p></article>
-        <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">lightbulb</span><h3>LED</h3><p id="ledStatus" class="status status-pending">Nincs adat</p></article>
-        <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">roofing</span><h3>Növényház teteje</h3><p id="roofStatus" class="status status-pending">Nincs adat</p></article>
+        <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">mode_fan</span><h3>Ventilátor</h3><label class="device-demo-switch"><span>Próba kapcsoló</span><input id="fanDemoSwitch" type="checkbox" role="switch" aria-label="Ventilátor próba kapcsoló"><span class="flet-switch-track" aria-hidden="true"></span></label></article>
+        <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">lightbulb</span><h3>LED</h3><label class="device-demo-switch"><span>Próba kapcsoló</span><input id="ledDemoSwitch" type="checkbox" role="switch" aria-label="LED próba kapcsoló"><span class="flet-switch-track" aria-hidden="true"></span></label></article>
+        <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">roofing</span><h3>Növényház teteje</h3><label class="device-demo-switch"><span>Próba kapcsoló</span><input id="roofDemoSwitch" type="checkbox" role="switch" aria-label="Növényház tető próba kapcsoló"><span class="flet-switch-track" aria-hidden="true"></span></label></article>
         <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">rainy</span><h3>Esőérzékelő</h3><p id="rainStatus" class="status status-pending">Nincs adat</p></article>
       </div>
       <div class="integration-note" id="integrationNote"><strong>Integrációs megjegyzés:</strong> field1 hőmérséklet, field2 páratartalom, field3 légnyomás, field4 lux, field5 eső, field6 ventilátor, field7 LED, field8 tető. A mikrovezérlő a szenzorok alapján helyben futtatja a szabályokat; távoli vezérlőparancsot ez az oldal nem küld.
@@ -126,6 +127,19 @@
 
     <section class="section" id="thingspeak">
       <div class="section-heading"><div><p class="eyebrow">ThingSpeak · ESP32</p><h2>Mérési előzmények</h2><p class="muted">A grafikonok a firmware jelenlegi mezőkiosztását követik.</p></div></div>
+      <div class="chart-toolbar" aria-label="Grafikon beállításai">
+        <label for="chartRangeSelect">Megjelenített időszak</label>
+        <select id="chartRangeSelect">
+          <option value="results:60">Utolsó 60 mérés</option>
+          <option value="results:200">Utolsó 200 mérés</option>
+          <option value="days:1">Utolsó 24 óra</option>
+          <option value="days:7">Utolsó 7 nap</option>
+          <option value="days:30">Utolsó 30 nap</option>
+          <option value="results:8000">Összes elérhető mérés (max. 8000)</option>
+        </select>
+        <button class="button secondary" id="refreshChartsBtn" type="button">Grafikonok frissítése</button>
+      </div>
+      <p class="chart-status muted" id="chartStatus" role="status" aria-live="polite">Grafikonadatok betöltése…</p>
       <div class="chart-grid greenhouse-charts">
         <div class="thingspeak-chart" data-field-chart="1" title="Hőmérséklet előzményei"></div>
         <div class="thingspeak-chart" data-field-chart="2" title="Páratartalom előzményei"></div>

@@ -2,3 +2,6 @@
 node_modules/
 desktop.ini
 .DS_Store
+data/feeds-synthetic-demo-2026-10.csv
+
+data/feeds-synthetic-demo-2026-10-thingspeak.csv

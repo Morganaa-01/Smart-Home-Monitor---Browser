@@ -1,12 +1,62 @@
 const REFRESH_INTERVAL_MS = 30_000;
+const CHART_REFRESH_INTERVAL_MS = 5 * 60_000;
 
 const state = {
   readings: null,
   lastEntry: null,
-  refreshTimer: null
+  lastChartFetchedAt: null,
+  refreshTimer: null,
+  chartRefreshTimer: null
 };
 
 const $ = (id) => document.getElementById(id);
+
+function formatBudapestTime(value) {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("hu-HU", {
+    timeZone: "Europe/Budapest",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).format(date);
+}
+
+function downsampleReadings(readings, maxPoints = 480) {
+  if (readings.length <= maxPoints) {
+    return readings.map((reading, index) => ({ ...reading, sourceIndex: index }));
+  }
+
+  const bucketSize = Math.ceil((readings.length - 2) / ((maxPoints - 2) / 2));
+  const sampled = [{ ...readings[0], sourceIndex: 0 }];
+
+  for (let start = 1; start < readings.length - 1; start += bucketSize) {
+    const end = Math.min(start + bucketSize, readings.length - 1);
+    let minimumIndex = start;
+    let maximumIndex = start;
+
+    for (let index = start + 1; index < end; index += 1) {
+      if (readings[index].value < readings[minimumIndex].value) minimumIndex = index;
+      if (readings[index].value > readings[maximumIndex].value) maximumIndex = index;
+    }
+
+    [minimumIndex, maximumIndex]
+      .sort((left, right) => left - right)
+      .forEach((sourceIndex) => {
+        if (sampled[sampled.length - 1].sourceIndex !== sourceIndex) {
+          sampled.push({ ...readings[sourceIndex], sourceIndex });
+        }
+      });
+  }
+
+  sampled.push({ ...readings.at(-1), sourceIndex: readings.length - 1 });
+  return sampled;
+}
 
 function renderThingSpeakCharts(feeds) {
   const svgNS = "http://www.w3.org/2000/svg";
@@ -18,6 +68,7 @@ function renderThingSpeakCharts(feeds) {
         timestamp: feed.created_at
       }))
       .filter((reading) => Number.isFinite(reading.value));
+    const plottedReadings = downsampleReadings(readings);
     const labels = { 1: "Hőmérséklet előzményei", 2: "Páratartalom előzményei", 3: "Légnyomás előzményei", 4: "Megvilágítás előzményei", 5: "Esőérzékelő előzményei", 6: "Ventilátor előzményei", 7: "LED állapota", 8: "Tetőállapot előzményei" };
     const label = labels[chart.dataset.fieldChart] || chart.title;
     const svg = document.createElementNS(svgNS, "svg");
@@ -49,7 +100,7 @@ function renderThingSpeakCharts(feeds) {
       : "—";
     addText(latestValue, 736, 30, "chart-value", "end");
 
-    const plot = { left: 72, right: 736, top: 54, bottom: 218 };
+    const plot = { left: 74, right: 736, top: 76, bottom: 226 };
     const frame = document.createElementNS(svgNS, "rect");
     frame.setAttribute("x", String(plot.left));
     frame.setAttribute("y", String(plot.top));
@@ -67,7 +118,12 @@ function renderThingSpeakCharts(feeds) {
       max += padding;
     }
     const range = max - min || 1;
-    const tickCount = 5;
+    const tickCount = 4;
+
+    if (readings.length) {
+      const summary = new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 2 });
+      addText(`Min. ${summary.format(min)}  ·  Max. ${summary.format(max)}`, 24, 53, "chart-summary");
+    }
 
     for (let index = 0; index < tickCount; index += 1) {
       const ratio = index / (tickCount - 1);
@@ -88,7 +144,11 @@ function renderThingSpeakCharts(feeds) {
       const date = new Date(timestamp);
       return Number.isNaN(date.getTime())
         ? ""
-        : new Intl.DateTimeFormat("hu-HU", { month: "short", day: "numeric" }).format(date);
+        : new Intl.DateTimeFormat("hu-HU", {
+            timeZone: "Europe/Budapest",
+            month: "short",
+            day: "numeric"
+          }).format(date);
     };
 
     for (let index = 0; index < xTickCount; index += 1) {
@@ -107,29 +167,30 @@ function renderThingSpeakCharts(feeds) {
       addText(timestampLabel, x, plot.bottom + 22, "chart-axis-label", "middle");
     }
 
-    if (readings.length) {
-      const coordinates = readings.map((reading, index) => ({
-        x: readings.length === 1 ? (plot.left + plot.right) / 2 : plot.left + (index / (readings.length - 1)) * (plot.right - plot.left),
+    if (plottedReadings.length) {
+      const coordinates = plottedReadings.map((reading) => ({
+        x: readings.length === 1 ? (plot.left + plot.right) / 2 : plot.left + (reading.sourceIndex / (readings.length - 1)) * (plot.right - plot.left),
         y: plot.bottom - ((reading.value - min) / range) * (plot.bottom - plot.top)
       }));
 
-      let pathData = `M ${coordinates[0].x.toFixed(1)} ${coordinates[0].y.toFixed(1)}`;
-      for (let index = 0; index < coordinates.length - 1; index += 1) {
-        const previous = coordinates[Math.max(index - 1, 0)];
-        const start = coordinates[index];
-        const end = coordinates[index + 1];
-        const next = coordinates[Math.min(index + 2, coordinates.length - 1)];
-        const control1X = start.x + (end.x - previous.x) / 6;
-        const control1Y = start.y + (end.y - previous.y) / 6;
-        const control2X = end.x - (next.x - start.x) / 6;
-        const control2Y = end.y - (next.y - start.y) / 6;
-        pathData += ` C ${control1X.toFixed(1)} ${control1Y.toFixed(1)}, ${control2X.toFixed(1)} ${control2Y.toFixed(1)}, ${end.x.toFixed(1)} ${end.y.toFixed(1)}`;
-      }
+      const pointList = coordinates.map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+      const area = document.createElementNS(svgNS, "polygon");
+      area.setAttribute("points", `${plot.left},${plot.bottom} ${pointList} ${plot.right},${plot.bottom}`);
+      area.setAttribute("class", "chart-area");
+      svg.append(area);
 
-      const line = document.createElementNS(svgNS, "path");
-      line.setAttribute("d", pathData);
+      const line = document.createElementNS(svgNS, "polyline");
+      line.setAttribute("points", pointList);
       line.setAttribute("class", "chart-line");
       svg.append(line);
+
+      const latestPoint = coordinates.at(-1);
+      const marker = document.createElementNS(svgNS, "circle");
+      marker.setAttribute("cx", latestPoint.x.toFixed(1));
+      marker.setAttribute("cy", latestPoint.y.toFixed(1));
+      marker.setAttribute("r", "5");
+      marker.setAttribute("class", "chart-last-point");
+      svg.append(marker);
     } else {
       addText("Nincs mérési adat", (plot.left + plot.right) / 2, (plot.top + plot.bottom) / 2, "chart-axis-label", "middle");
     }
@@ -192,6 +253,11 @@ function setStateBadge(id, label, stateName) {
   element.className = `status status-${stateName}`;
 }
 
+function syncDemoSwitch(id, isOn) {
+  const control = $(id);
+  if (!control.dataset.previewChanged) control.checked = isOn === true;
+}
+
 function renderReadings(entry) {
   const fields = {
     temperature: numericField(entry.field1),
@@ -222,9 +288,9 @@ function renderReadings(entry) {
 
   $("heroRain").textContent = raining === null ? "—" : raining ? "Észlelve" : "Nem észlelhető";
   setStateBadge("rainStatus", raining === null ? "Nincs adat" : raining ? "Esőt érzékel" : "Nem esik", raining === null ? "pending" : raining ? "warning" : "on");
-  setStateBadge("fanStatus", fanOn === null ? "Nincs adat" : fanOn ? "Bekapcsolva" : "Kikapcsolva", fanOn === null ? "pending" : fanOn ? "on" : "off");
-  setStateBadge("ledStatus", ledOn === null ? "Nincs adat" : ledOn ? "Bekapcsolva" : "Kikapcsolva", ledOn === null ? "pending" : ledOn ? "on" : "off");
-  setStateBadge("roofStatus", roofOpen === null ? "Nincs adat" : roofOpen ? "Nyitva" : "Zárva", roofOpen === null ? "pending" : roofOpen ? "warning" : "on");
+  syncDemoSwitch("fanDemoSwitch", fanOn);
+  syncDemoSwitch("ledDemoSwitch", ledOn);
+  syncDemoSwitch("roofDemoSwitch", roofOpen);
 
   const date = entry.created_at ? new Date(entry.created_at) : null;
   const ageSeconds = date && !Number.isNaN(date.valueOf())
@@ -250,13 +316,47 @@ async function loadLatestReadings({ quiet = false } = {}) {
     const entry = feeds.at(-1);
     if (!entry || !entry.created_at) throw new Error("A csatornából nem érkezett mérési adat.");
     renderReadings(entry);
-    renderThingSpeakCharts(feeds);
   } catch (error) {
     $("connectionStatus").textContent = "Nem elérhető";
     $("connectionStatus").className = "connection-pill disconnected";
     if (!state.lastEntry) $("lastUpdated").textContent = "Nem sikerült csatlakozni a ThingSpeak csatornához.";
     if (!quiet) addChatMessage("Rendszer", error.message || "Nem sikerült adatot betölteni a ThingSpeak csatornából.", "system");
     console.error("ThingSpeak read failed:", error);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function loadChartHistory({ quiet = false } = {}) {
+  const button = $("refreshChartsBtn");
+  const status = $("chartStatus");
+  const [rangeType, rangeValue] = $("chartRangeSelect").value.split(":");
+  const params = new URLSearchParams({ [rangeType]: rangeValue });
+
+  if (button) button.disabled = true;
+  if (!quiet) status.textContent = "Grafikonadatok betöltése…";
+
+  try {
+    const response = await fetch(`/api/thingspeak?${params.toString()}`, { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || `ThingSpeak válasza: ${response.status}`);
+
+    const feeds = Array.isArray(data.feeds) ? data.feeds : [];
+    renderThingSpeakCharts(feeds);
+    const rangeLabel = $("chartRangeSelect").selectedOptions[0]?.textContent || "kiválasztott időszak";
+    state.lastChartFetchedAt = new Date();
+    const latestMeasurement = feeds.at(-1)?.created_at;
+    const channelId = data.channel?.id ? ` · ThingSpeak #${data.channel.id}` : "";
+    const latestLabel = latestMeasurement
+      ? ` · Legutóbbi mérés: ${formatBudapestTime(latestMeasurement)}`
+      : " · Nincs mérési adat";
+    status.textContent = `${feeds.length} mérési pont betöltve · ${rangeLabel} · Grafikon frissítve: ${formatBudapestTime(state.lastChartFetchedAt)}${latestLabel}${channelId}.`;
+  } catch (error) {
+    const lastSuccess = state.lastChartFetchedAt
+      ? ` Utolsó sikeres frissítés: ${formatBudapestTime(state.lastChartFetchedAt)}.`
+      : "";
+    status.textContent = `${error.message || "Nem sikerült betölteni a grafikonadatokat."}${lastSuccess}`;
+    console.error("ThingSpeak chart history failed:", error);
   } finally {
     if (button) button.disabled = false;
   }
@@ -437,6 +537,22 @@ function handleWeatherLocationKeydown(event) {
   }
 }
 
+async function findNearbyPlaceName(latitude, longitude) {
+  const params = new URLSearchParams({
+    format: "jsonv2",
+    lat: String(latitude),
+    lon: String(longitude),
+    zoom: "10",
+    addressdetails: "1",
+    "accept-language": "hu"
+  });
+  const response = await fetch("https://nominatim.openstreetmap.org/reverse?" + params.toString());
+  if (!response.ok) throw new Error("A településnév nem érhető el.");
+  const data = await response.json();
+  const address = data.address || {};
+  return address.city || address.town || address.village || address.municipality || address.hamlet || address.suburb || address.county || data.name || null;
+}
+
 function useCurrentLocation() {
   const button = $("useMyLocationBtn");
   if (!navigator.geolocation) {
@@ -449,8 +565,13 @@ function useCurrentLocation() {
   navigator.geolocation.getCurrentPosition(async (position) => {
     const latitude = position.coords.latitude;
     const longitude = position.coords.longitude;
-    const placeName = "Saját helyzet (" + latitude.toFixed(2) + ", " + longitude.toFixed(2) + ")";
     try {
+      let placeName = "Saját helyzet";
+      try {
+        placeName = await findNearbyPlaceName(latitude, longitude) || placeName;
+      } catch (error) {
+        console.warn("Reverse geocoding failed:", error.message);
+      }
       await loadCurrentWeather(latitude, longitude, placeName);
     } catch (error) {
       setWeatherStatus(error.message || "Nem sikerült betölteni az időjárást.", true);
@@ -561,15 +682,44 @@ function setupNavigation() {
   }));
 }
 
+function setupDemoSwitches() {
+  ["fanDemoSwitch", "ledDemoSwitch", "roofDemoSwitch"].forEach((id) => {
+    $(id).addEventListener("change", (event) => {
+      event.currentTarget.dataset.previewChanged = "true";
+    });
+  });
+}
+
+function setupChartControls() {
+  const select = $("chartRangeSelect");
+  const savedRange = localStorage.getItem("greenhouse-chart-range");
+  if ([...select.options].some((option) => option.value === savedRange)) {
+    select.value = savedRange;
+  }
+
+  select.addEventListener("change", () => {
+    localStorage.setItem("greenhouse-chart-range", select.value);
+    loadChartHistory();
+  });
+  $("refreshChartsBtn").addEventListener("click", () => loadChartHistory());
+}
+
 function init() {
   setupTheme();
   setupWeather();
   setupNavigation();
-  $("refreshDataBtn").addEventListener("click", () => loadLatestReadings());
+  setupDemoSwitches();
+  setupChartControls();
+  $("refreshDataBtn").addEventListener("click", () => {
+    loadLatestReadings();
+    loadChartHistory({ quiet: true });
+  });
   $("chatForm").addEventListener("submit", submitChat);
   addChatMessage("Növényházi asszisztens", "Szia! A legutóbb betöltött növényházi mérések alapján tudok segíteni.", "bot");
   loadLatestReadings();
+  loadChartHistory({ quiet: true });
   state.refreshTimer = window.setInterval(() => loadLatestReadings({ quiet: true }), REFRESH_INTERVAL_MS);
+  state.chartRefreshTimer = window.setInterval(() => loadChartHistory({ quiet: true }), CHART_REFRESH_INTERVAL_MS);
 }
 
 document.addEventListener("DOMContentLoaded", init);
