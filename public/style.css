@@ -1280,7 +1280,7 @@ footer {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 960px) {
   .navbar {
     border-radius: 26px;
     flex-direction: row;
