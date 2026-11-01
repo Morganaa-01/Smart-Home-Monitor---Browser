@@ -5,3 +5,6 @@ desktop.ini
 data/feeds-synthetic-demo-2026-10.csv
 
 data/feeds-synthetic-demo-2026-10-thingspeak.csv
+data/feeds-synthetic-demo-firmware-2026-11.csv
+data/feeds-synthetic-demo-firmware-2026-11-gap-import.csv
+data/feeds-synthetic-demo-firmware-2026-10-month.csv
