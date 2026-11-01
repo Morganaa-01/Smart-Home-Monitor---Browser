@@ -71,6 +71,7 @@ function renderThingSpeakCharts(feeds) {
     const plottedReadings = downsampleReadings(readings);
     const labels = { 1: "Hőmérséklet előzményei", 2: "Páratartalom előzményei", 3: "Légnyomás előzményei", 4: "Megvilágítás előzményei", 5: "Esőérzékelő előzményei", 6: "Ventilátor előzményei", 7: "LED állapota", 8: "Tetőállapot előzményei" };
     const label = labels[chart.dataset.fieldChart] || chart.title;
+    const unit = { 1: "°C", 2: "%", 3: "", 4: "lux", 5: "", 6: "", 7: "", 8: "" }[chart.dataset.fieldChart];
     const svg = document.createElementNS(svgNS, "svg");
     svg.setAttribute("viewBox", "0 0 760 270");
     svg.setAttribute("preserveAspectRatio", "none");
@@ -191,6 +192,98 @@ function renderThingSpeakCharts(feeds) {
       marker.setAttribute("r", "5");
       marker.setAttribute("class", "chart-last-point");
       svg.append(marker);
+
+      const hoverIndicator = document.createElementNS(svgNS, "g");
+      hoverIndicator.setAttribute("class", "chart-hover-indicator");
+      hoverIndicator.setAttribute("aria-hidden", "true");
+
+      const hoverLine = document.createElementNS(svgNS, "line");
+      hoverLine.setAttribute("y1", String(plot.top));
+      hoverLine.setAttribute("y2", String(plot.bottom));
+      hoverLine.setAttribute("class", "chart-hover-line");
+      hoverIndicator.append(hoverLine);
+
+      const hoverPoint = document.createElementNS(svgNS, "circle");
+      hoverPoint.setAttribute("r", "6");
+      hoverPoint.setAttribute("class", "chart-hover-point");
+      hoverIndicator.append(hoverPoint);
+
+      const tooltipWidth = 196;
+      const tooltipHeight = 58;
+      const tooltipBackground = document.createElementNS(svgNS, "rect");
+      tooltipBackground.setAttribute("width", String(tooltipWidth));
+      tooltipBackground.setAttribute("height", String(tooltipHeight));
+      tooltipBackground.setAttribute("rx", "10");
+      tooltipBackground.setAttribute("class", "chart-tooltip-background");
+      hoverIndicator.append(tooltipBackground);
+
+      const tooltipTime = document.createElementNS(svgNS, "text");
+      tooltipTime.setAttribute("class", "chart-tooltip-time");
+      tooltipTime.setAttribute("x", "12");
+      tooltipTime.setAttribute("y", "22");
+      hoverIndicator.append(tooltipTime);
+
+      const tooltipValue = document.createElementNS(svgNS, "text");
+      tooltipValue.setAttribute("class", "chart-tooltip-value");
+      tooltipValue.setAttribute("x", "12");
+      tooltipValue.setAttribute("y", "44");
+      hoverIndicator.append(tooltipValue);
+
+      svg.append(hoverIndicator);
+
+      const hitArea = document.createElementNS(svgNS, "rect");
+      hitArea.setAttribute("x", String(plot.left));
+      hitArea.setAttribute("y", String(plot.top));
+      hitArea.setAttribute("width", String(plot.right - plot.left));
+      hitArea.setAttribute("height", String(plot.bottom - plot.top));
+      hitArea.setAttribute("class", "chart-hover-area");
+      hitArea.setAttribute("aria-label", "Mutass egy mérési pontot a grafikonon");
+      svg.append(hitArea);
+
+      const moveHoverIndicator = (event) => {
+        const bounds = svg.getBoundingClientRect();
+        if (!bounds.width || !bounds.height) return;
+
+        const pointerX = ((event.clientX - bounds.left) / bounds.width) * 760;
+        let nearestIndex = 0;
+        let nearestDistance = Number.POSITIVE_INFINITY;
+
+        coordinates.forEach((coordinate, index) => {
+          const distance = Math.abs(coordinate.x - pointerX);
+          if (distance < nearestDistance) {
+            nearestIndex = index;
+            nearestDistance = distance;
+          }
+        });
+
+        const coordinate = coordinates[nearestIndex];
+        const reading = plottedReadings[nearestIndex];
+        const tooltipX = coordinate.x + tooltipWidth + 14 > plot.right
+          ? coordinate.x - tooltipWidth - 14
+          : coordinate.x + 14;
+        const tooltipY = Math.max(
+          plot.top + 4,
+          Math.min(plot.bottom - tooltipHeight - 4, coordinate.y - tooltipHeight - 14)
+        );
+
+        hoverLine.setAttribute("x1", coordinate.x.toFixed(1));
+        hoverLine.setAttribute("x2", coordinate.x.toFixed(1));
+        hoverPoint.setAttribute("cx", coordinate.x.toFixed(1));
+        hoverPoint.setAttribute("cy", coordinate.y.toFixed(1));
+        tooltipBackground.setAttribute("x", tooltipX.toFixed(1));
+        tooltipBackground.setAttribute("y", tooltipY.toFixed(1));
+        tooltipTime.setAttribute("x", (tooltipX + 12).toFixed(1));
+        tooltipTime.setAttribute("y", (tooltipY + 22).toFixed(1));
+        tooltipValue.setAttribute("x", (tooltipX + 12).toFixed(1));
+        tooltipValue.setAttribute("y", (tooltipY + 44).toFixed(1));
+        tooltipTime.textContent = formatBudapestTime(reading.timestamp);
+        tooltipValue.textContent = `${new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 2 }).format(reading.value)}${unit ? ` ${unit}` : ""}`;
+        hoverIndicator.classList.add("is-visible");
+      };
+
+      hitArea.addEventListener("pointermove", moveHoverIndicator);
+      hitArea.addEventListener("pointerdown", moveHoverIndicator);
+      hitArea.addEventListener("pointerleave", () => hoverIndicator.classList.remove("is-visible"));
     } else {
       addText("Nincs mérési adat", (plot.left + plot.right) / 2, (plot.top + plot.bottom) / 2, "chart-axis-label", "middle");
     }
