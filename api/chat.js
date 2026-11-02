@@ -3,6 +3,7 @@ const GREENHOUSE_PROMPT = {
   version: "1"
 };
 
+// Ha hálózati hiba miatt nem érkezik válasz, egyszer újrapróbáljuk a kérést.
 async function fetchOpenAIWithRetry(url, options) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -36,6 +37,7 @@ export default async function handler(req, res) {
       });
     }
 
+    // A kulcs a szerveren marad, a böngészőnek soha nem küldjük el.
     const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
@@ -68,7 +70,7 @@ ${message.trim()}`,
       try {
         providerError = (await openAIResponse.json()).error || {};
       } catch {
-        // The provider may return a non-JSON error body.
+        // Hiba esetén a szolgáltató válasza nem mindig JSON-formátumú.
       }
 
       console.error("[chat] OpenAI request failed", {
