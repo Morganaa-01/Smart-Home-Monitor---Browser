@@ -4,12 +4,13 @@ import { requireAuthentication } from "./lib/auth.js";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const MAX_TOOL_ROUNDS = 4;
+const MAX_OPENAI_ATTEMPTS = 3;
 
 async function fetchOpenAIWithRetry(apiKey, body) {
-  // Átmeneti hálózati hiba esetén egyszer próbálkozunk újra.
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  // Hálózati hiba vagy átmeneti OpenAI-túlterhelés esetén várunk, majd újrapróbáljuk a kérést.
+  for (let attempt = 0; attempt < MAX_OPENAI_ATTEMPTS; attempt += 1) {
     try {
-      return await fetch(OPENAI_RESPONSES_URL, {
+      const response = await fetch(OPENAI_RESPONSES_URL, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -17,14 +18,28 @@ async function fetchOpenAIWithRetry(apiKey, body) {
         },
         body: JSON.stringify(body)
       });
+
+      if (response.status === 503 && attempt < MAX_OPENAI_ATTEMPTS - 1) {
+        const errorBody = await response.clone().json().catch(() => ({}));
+        if (errorBody.error?.code === "server_is_overloaded") {
+          const retryAfter = Number(response.headers.get("retry-after"));
+          const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+            ? Math.min(retryAfter * 1000, 5000)
+            : 800 * (2 ** attempt);
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+          continue;
+        }
+      }
+
+      return response;
     } catch (error) {
-      if (attempt === 1) {
+      if (attempt === MAX_OPENAI_ATTEMPTS - 1) {
         const networkError = new Error("Nem sikerült elérni az OpenAI API-t.");
         networkError.code = "openai_network_error";
         networkError.cause = error;
         throw networkError;
       }
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      await new Promise((resolve) => setTimeout(resolve, 800 * (2 ** attempt)));
     }
   }
 }
@@ -161,7 +176,19 @@ function formatLastRainReply(summary) {
   return "Az érzékelő " + startTime + " és " + endTime + " között jelzett esőt, körülbelül " + duration + " hosszan. A csapadék mennyiségét nem méri.";
 }
 
-function buildUserInput(message, sensorContext, historyResult = null) {
+function sanitizeConversation(conversation) {
+  // A böngésző csak a szerepet és a szöveget küldheti; utasítást vagy eszközeredményt nem fogadunk el előzményként.
+  if (!Array.isArray(conversation)) return [];
+
+  return conversation
+    .filter((item) => item && ["user", "assistant"].includes(item.role)
+      && typeof item.content === "string")
+    .map(({ role, content }) => ({ role, content: content.trim().slice(0, 2000) }))
+    .filter((item) => item.content && item.content !== "Gondolkodom…")
+    .slice(-12);
+}
+
+function buildUserInput(message, sensorContext, historyResult = null, conversation = []) {
   // A modell a kérdés mellett megkapja a felületen látható és a külön lekért adatokat is.
   const context = JSON.stringify(sensorContext ?? {}, null, 2);
   const now = new Date();
@@ -177,7 +204,7 @@ function buildUserInput(message, sensorContext, historyResult = null) {
     ? `A lekérdezés kizárólag ezekre a napokra szól: ${historyResult.requested_dates.join(", ")}. Más napokról ne adj adatot, és ne kezeld a két dátum közötti időszakot kért időszakként.`
     : "";
 
-  return [{
+  return [...sanitizeConversation(conversation), {
     role: "user",
     content: `A felület által utoljára betöltött szenzoradatok és eszközállapotok. Ezek az adatok elavultak lehetnek:\n${context}\n\n${history}\n${dateScope}\n\nAktuális dátum és idő: ${budapestNow}\n\nFelhasználói kérdés:\n${message.trim()}`
   }];
@@ -282,6 +309,9 @@ function userFacingError(error) {
   if (error.statusCode === 403 || error.statusCode === 404) {
     return "Az OpenAI projekt nem éri el a beállított modellt vagy API-erőforrást. Ellenőrizd a projekt hozzáférését.";
   }
+  if (error.statusCode === 503 && error.code === "server_is_overloaded") {
+    return "Az OpenAI szolgáltatás átmenetileg túlterhelt. Próbáld újra néhány másodperc múlva.";
+  }
   if (error.statusCode === 429) return "Az OpenAI API kérési korlátja vagy kerete miatt most nem sikerült a válasz. Próbáld újra később.";
   if (error.code === "openai_network_error") return "Nem sikerült elérni az OpenAI API-t. Ellenőrizd a szerver internetkapcsolatát, majd próbáld újra.";
   if (error.code === "missing_thingspeak_read_key") return "Hiányzik a ThingSpeak Read API Key szerverbeállítása.";
@@ -299,7 +329,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed. Use POST." });
   }
 
-  const { message, sensorContext } = req.body || {};
+  const { message, sensorContext, conversation } = req.body || {};
   if (typeof message !== "string" || message.trim().length === 0) {
     return res.status(400).json({ error: "Message is required." });
   }
@@ -338,7 +368,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ reply: formatLastRainReply(historyResult) });
     }
 
-    const input = buildUserInput(message, sensorContext, historyResult);
+    const input = buildUserInput(message, sensorContext, historyResult, conversation);
     const response = await runAssistantTurn(apiKey, input, historyResult === null);
     const reply = extractReply(response) || "Nem érkezett válasz.";
     return res.status(200).json({ reply });

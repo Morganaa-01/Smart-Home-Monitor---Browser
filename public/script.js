@@ -1036,6 +1036,15 @@ async function submitChat(event) {
   if (!message) return;
 
   addChatMessage("Te", message, "user");
+  // A legutóbbi, most elküldött kérdést kihagyjuk; azt a szerver külön kapja meg.
+  const conversation = [...$("chatMessages").querySelectorAll(".chat-message")]
+    .filter((item) => item.classList.contains("user-message") || item.classList.contains("bot-message"))
+    .map((item) => ({
+      role: item.classList.contains("user-message") ? "user" : "assistant",
+      content: item.querySelector("p")?.textContent?.trim() || ""
+    }))
+    .filter((item) => item.content && item.content !== "Gondolkodom…")
+    .slice(-13, -1);
   input.value = "";
 
   if (isSimpleGreeting(message)) {
@@ -1050,7 +1059,7 @@ async function submitChat(event) {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, sensorContext: sensorContext() })
+      body: JSON.stringify({ message, sensorContext: sensorContext(), conversation })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Az AI-kérés nem sikerült.");
