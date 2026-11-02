@@ -13,6 +13,67 @@ const state = {
 
 const ACTIVITY_LOG_KEY = "greenhouse-activity-log";
 const ACTIVITY_LOG_LIMIT = 30;
+const CHAT_HISTORY_KEY = "greenhouse-chat-history";
+const CHAT_HISTORY_LIMIT = 60;
+const SENSOR_CACHE_KEY = "greenhouse-last-reading";
+const CHAT_GREETING_TEXT = "Szia! A legutóbb betöltött növényházi mérések alapján tudok segíteni. A beszélgetést a gpt-6-luna modell működteti.";
+
+// A beszélgetést csak ebben a böngészőben őrizzük meg, és korlátozzuk a méretét.
+function getSavedChatHistory() {
+  try {
+    const messages = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || "[]");
+    if (!Array.isArray(messages)) return [];
+
+    return messages
+      .filter((message) => message && ["user", "bot"].includes(message.type)
+        && typeof message.sender === "string" && typeof message.text === "string")
+      .slice(-CHAT_HISTORY_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+function saveChatHistory() {
+  // Csak a valódi felhasználói és asszisztensüzeneteket mentjük, a rendszerjelzéseket nem.
+  const messages = [...$("chatMessages").querySelectorAll(".chat-message")]
+    .filter((item) => item.classList.contains("user-message") || item.classList.contains("bot-message"))
+    .map((item) => ({
+      type: item.classList.contains("user-message") ? "user" : "bot",
+      sender: item.querySelector("strong")?.textContent || "",
+      text: item.querySelector("p")?.textContent || ""
+    }))
+    .filter((message) => message.text && message.text !== "Gondolkodom…")
+    .slice(-CHAT_HISTORY_LIMIT);
+
+  try {
+    localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(messages));
+  } catch {
+    // Ha a böngésző tiltja a helyi tárolást, a chat attól még használható marad.
+  }
+}
+
+function restoreChatHistory() {
+  // Visszatöltjük az utolsó üzeneteket; az addChatMessage hamis paramétere megakadályozza az újramentést.
+  const messages = getSavedChatHistory();
+  messages.forEach(({ sender, text, type }, index) => {
+    // A korábban elmentett nyitóüzenetet is frissítjük, hogy a modell neve ott is látszódjon.
+    const greeting = index === 0 && type === "bot" && text === "Szia! A legutóbb betöltött növényházi mérések alapján tudok segíteni."
+      ? CHAT_GREETING_TEXT
+      : text;
+    addChatMessage(sender, greeting, type, false);
+  });
+  return messages.length > 0;
+}
+
+// Az utolsó mérés gyorsítótára induláskor megjelenik, amíg a friss lekérés befejeződik.
+function restoreCachedReading() {
+  try {
+    const entry = JSON.parse(localStorage.getItem(SENSOR_CACHE_KEY) || "null");
+    if (entry && typeof entry.created_at === "string") renderReadings(entry, false);
+  } catch {
+    // Hibás vagy hiányzó gyorsítótár esetén a ThingSpeak lekérése tölti be az adatot.
+  }
+}
 
 function getActivityLog() {
   try {
@@ -499,7 +560,7 @@ window.addEventListener("resize", () => {
 // ----------------------- Chat és szenzoradatok -----------------------------
 
 // A chat válaszát szövegként jelenítjük meg, nem HTML-kódként.
-function addChatMessage(sender, message, type) {
+function addChatMessage(sender, message, type, save = true) {
   const item = document.createElement("article");
   item.className = `chat-message ${type}-message`;
   const heading = document.createElement("strong");
@@ -509,6 +570,8 @@ function addChatMessage(sender, message, type) {
   item.append(heading, body);
   $("chatMessages").append(item);
   $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+  // A visszatöltött üzeneteknél kikapcsoljuk a mentést, új üzenetnél viszont frissítjük az előzményt.
+  if (save && ["user", "bot"].includes(type)) saveChatHistory();
   return body;
 }
 
@@ -562,7 +625,7 @@ function syncDemoSwitch(id, isOn) {
 // ----------------------- Irányítópult mérései ------------------------------
 
 // Frissítjük a mérési kártyákat és a kapcsolók állapotát egy ThingSpeak rekordból.
-function renderReadings(entry) {
+function renderReadings(entry, saveToCache = true) {
   const fields = {
     temperature: numericField(entry.field1),
     humidity: numericField(entry.field2),
@@ -576,6 +639,14 @@ function renderReadings(entry) {
 
   state.readings = fields;
   state.lastEntry = entry;
+  if (saveToCache) {
+    try {
+      // Így hálózati hiba esetén is marad egy korábbi, megjeleníthető mérés.
+      localStorage.setItem(SENSOR_CACHE_KEY, JSON.stringify(entry));
+    } catch {
+      // A friss mérés megjelenítését nem akadályozhatja meg a megtelt tárhely.
+    }
+  }
 
   setNumber("temperatureValue", fields.temperature, 1);
   setNumber("humidityValue", fields.humidity);
@@ -972,6 +1043,15 @@ async function submitChat(event) {
   if (!message) return;
 
   addChatMessage("Te", message, "user");
+  // A legutóbbi, most elküldött kérdést kihagyjuk; azt a szerver külön kapja meg.
+  const conversation = [...$("chatMessages").querySelectorAll(".chat-message")]
+    .filter((item) => item.classList.contains("user-message") || item.classList.contains("bot-message"))
+    .map((item) => ({
+      role: item.classList.contains("user-message") ? "user" : "assistant",
+      content: item.querySelector("p")?.textContent?.trim() || ""
+    }))
+    .filter((item) => item.content && item.content !== "Gondolkodom…")
+    .slice(-13, -1);
   input.value = "";
 
   if (isSimpleGreeting(message)) {
@@ -986,14 +1066,16 @@ async function submitChat(event) {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, sensorContext: sensorContext() })
+      body: JSON.stringify({ message, sensorContext: sensorContext(), conversation })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Az AI-kérés nem sikerült.");
     reply.textContent = cleanAssistantReply(data.reply || "Nem érkezett válasz.");
+    saveChatHistory();
     addActivityLog("Az AI-asszisztens válasza megérkezett.", "success");
   } catch (error) {
     reply.textContent = error.message || "Az asszisztens most nem érhető el. Ellenőrizd a szerver AI-beállításait, majd próbáld újra.";
+    saveChatHistory();
     addActivityLog("Az AI-asszisztens kérése nem sikerült.", "error");
     console.error("AI chat failed:", error);
   } finally {
@@ -1008,14 +1090,16 @@ function setupTheme() {
   // A választott témát a böngésző megjegyzi, hogy oldalváltás után se álljon vissza.
   const savedTheme = localStorage.getItem("greenhouse-theme");
   const themeToggle = $("themeToggle");
-  if (savedTheme === "dark") document.body.classList.add("dark");
+  if (savedTheme === "dark") document.documentElement.classList.add("dark");
   const updateThemeState = () => {
-    themeToggle.setAttribute("aria-pressed", String(document.body.classList.contains("dark")));
+    themeToggle.setAttribute("aria-pressed", String(document.documentElement.classList.contains("dark")));
   };
   updateThemeState();
   themeToggle.addEventListener("click", () => {
-    document.body.classList.toggle("dark");
-    localStorage.setItem("greenhouse-theme", document.body.classList.contains("dark") ? "dark" : "light");
+    document.documentElement.classList.toggle("dark");
+    const theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+    localStorage.setItem("greenhouse-theme", theme);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#121813" : "#f3f6f1");
     updateThemeState();
   });
 }
@@ -1120,7 +1204,13 @@ function initializeDashboard() {
     loadChartHistory({ quiet: true });
   });
   $("chatForm").addEventListener("submit", submitChat);
-  addChatMessage("Növényház okos kertésze", "Szia! A legutóbb betöltött növényházi mérések alapján tudok segíteni.", "bot");
+  // Előbb visszaállítjuk a korábbi beszélgetést, így csak üres chatnél jelenik meg az üdvözlés.
+  const hasChatHistory = restoreChatHistory();
+  if (!hasChatHistory) {
+    addChatMessage("Növényház okos kertésze", CHAT_GREETING_TEXT, "bot");
+  }
+  // A mentett mérés rögtön látható; a következő sor friss adatot kér a ThingSpeaktől.
+  restoreCachedReading();
   loadLatestReadings();
   loadChartHistory({ quiet: true });
   state.refreshTimer = window.setInterval(() => loadLatestReadings({ quiet: true }), REFRESH_INTERVAL_MS);

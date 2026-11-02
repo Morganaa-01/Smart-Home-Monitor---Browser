@@ -255,16 +255,15 @@ cancelEditBtn.addEventListener("click", resetForm);
 function setupTheme() {
   // A főoldallal közös beállítást használjuk, így az oldalváltás nem vált témát.
   const storedTheme = localStorage.getItem("greenhouse-theme");
-  if (storedTheme === "dark") {
-    document.body.classList.add("dark");
-  }
-  themeToggle.setAttribute("aria-pressed", String(document.body.classList.contains("dark")));
+  if (storedTheme === "dark") document.documentElement.classList.add("dark");
+  themeToggle.setAttribute("aria-pressed", String(document.documentElement.classList.contains("dark")));
 
   themeToggle.addEventListener("click", () => {
-    document.body.classList.toggle("dark");
+    document.documentElement.classList.toggle("dark");
 
-    const theme = document.body.classList.contains("dark") ? "dark" : "light";
+    const theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
     localStorage.setItem("greenhouse-theme", theme);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#121813" : "#f3f6f1");
     themeToggle.setAttribute("aria-pressed", String(theme === "dark"));
   });
 }
