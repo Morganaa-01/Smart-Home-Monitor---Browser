@@ -21,6 +21,7 @@ const BUDAPEST_FORMATTER = new Intl.DateTimeFormat("en-GB", {
 });
 
 function formatBudapestTimestamp(timestamp) {
+  // A ThingSpeak UTC-időpontját úgy alakítjuk át, hogy a budapesti dátum és idő is megmaradjon.
   if (!timestamp) return null;
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return null;
@@ -51,6 +52,7 @@ function addBudapestTime(sample) {
 }
 
 function budapestMidnightUtc(dateString) {
+  // A megadott naptári nap kezdetét UTC-re váltjuk; így az óraátállítás is helyesen működik.
   if (!DATE_ONLY_PATTERN.test(dateString)) return null;
   const [year, month, day] = dateString.split("-").map(Number);
   const target = Date.UTC(year, month - 1, day);
@@ -218,6 +220,7 @@ function summarizeLastActiveEvent(feeds, field) {
   let currentEvent = null;
   let lastEvent = null;
   let lastEventIsActive = false;
+  // Új jelzés kezdődik, ha az érzékelő kikapcsol, vagy két aktív minta között túl nagy a kihagyás.
   for (const reading of readings) {
     if (reading.value !== 1) {
       if (currentEvent) {
@@ -281,6 +284,7 @@ function calculateSunlightHours(feeds) {
     const next = lightReadings[index + 1];
     const intervalSeconds = (next.timestamp - current.timestamp) / 1000;
     if (intervalSeconds <= 0) continue;
+    // Hosszabb adatszünetet nem számítunk napsütésnek, mert nem tudjuk, mi történt közben.
     if (intervalSeconds > MAX_SUNLIGHT_SAMPLE_GAP_SECONDS) {
       skippedLongGaps += 1;
       continue;
