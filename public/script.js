@@ -16,6 +16,7 @@ const ACTIVITY_LOG_LIMIT = 30;
 const CHAT_HISTORY_KEY = "greenhouse-chat-history";
 const CHAT_HISTORY_LIMIT = 60;
 const SENSOR_CACHE_KEY = "greenhouse-last-reading";
+const CHAT_GREETING_TEXT = "Szia! A legutóbb betöltött növényházi mérések alapján tudok segíteni. A beszélgetést a gpt-6-luna modell működteti.";
 
 // A beszélgetést csak ebben a böngészőben őrizzük meg, és korlátozzuk a méretét.
 function getSavedChatHistory() {
@@ -54,7 +55,13 @@ function saveChatHistory() {
 function restoreChatHistory() {
   // Visszatöltjük az utolsó üzeneteket; az addChatMessage hamis paramétere megakadályozza az újramentést.
   const messages = getSavedChatHistory();
-  messages.forEach(({ sender, text, type }) => addChatMessage(sender, text, type, false));
+  messages.forEach(({ sender, text, type }, index) => {
+    // A korábban elmentett nyitóüzenetet is frissítjük, hogy a modell neve ott is látszódjon.
+    const greeting = index === 0 && type === "bot" && text === "Szia! A legutóbb betöltött növényházi mérések alapján tudok segíteni."
+      ? CHAT_GREETING_TEXT
+      : text;
+    addChatMessage(sender, greeting, type, false);
+  });
   return messages.length > 0;
 }
 
@@ -1200,7 +1207,7 @@ function initializeDashboard() {
   // Előbb visszaállítjuk a korábbi beszélgetést, így csak üres chatnél jelenik meg az üdvözlés.
   const hasChatHistory = restoreChatHistory();
   if (!hasChatHistory) {
-    addChatMessage("Növényház okos kertésze", "Szia! A legutóbb betöltött növényházi mérések alapján tudok segíteni.", "bot");
+    addChatMessage("Növényház okos kertésze", CHAT_GREETING_TEXT, "bot");
   }
   // A mentett mérés rögtön látható; a következő sor friss adatot kér a ThingSpeaktől.
   restoreCachedReading();
