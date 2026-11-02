@@ -39,6 +39,7 @@ function isHistoricalDataQuestion(message) {
 }
 
 function isLastRainQuestion(message) {
+  // Az ékezeteket egységesítjük, és a teljes üzenetet vizsgáljuk, ezért a köszönés nem zavar be.
   const normalized = message.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
   return /mikor\w*|utoljara\w*|legutobb\w*/i.test(normalized) && /eso\w*|rain\w*/i.test(normalized);
 }
@@ -97,6 +98,7 @@ async function getRequestedDaySummaries(dates) {
 }
 
 async function getLastRainSummary() {
+  // Az utolsó 30 napból keressük ki a legfrissebb aktív esőjelzést.
   const result = await runGreenhouseTool("get_sensor_history", {
     hours: 720,
     start_date: null,
@@ -120,6 +122,7 @@ async function getLastRainSummary() {
 }
 
 function formatLastRainReply(summary) {
+  // Ezt a rövid választ a szerver állítja össze a mérési adatokból, nem a modell találja ki.
   if (!summary.total_samples) {
     return "A lekért időszakban nincs esőérzékelő-adat.";
   }
@@ -140,6 +143,7 @@ function formatLastRainReply(summary) {
     return "Az érzékelő legutóbb " + formatDateTime(summary.last_active_at_budapest) + "-kor jelzett esőt. A csapadék mennyiségét nem méri.";
   }
 
+  // Az első és utolsó aktív minta közti időt percben jelenítjük meg.
   const durationMinutes = Math.max(1, Math.round((Date.parse(event.last_active_at_budapest) - Date.parse(event.started_at_budapest)) / 60000));
   const days = Math.floor(durationMinutes / 1440);
   const hours = Math.floor((durationMinutes % 1440) / 60);
@@ -330,6 +334,7 @@ export default async function handler(req, res) {
       if (historyResult?.error) {
         return res.status(502).json({ error: userFacingError(historyResult), code: historyResult.code });
       }
+      // Ennél a kérdésnél a dátum és az időtartam közvetlenül a ThingSpeak-adatokból származik.
       return res.status(200).json({ reply: formatLastRainReply(historyResult) });
     }
 
