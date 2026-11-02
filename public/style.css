@@ -25,7 +25,7 @@
   --accent-color: #dceede;
 }
 
-body.dark {
+:root.dark {
   --bg: #121813;
   --surface: #1c261e;
   --surface-raised: #232f25;
@@ -291,7 +291,7 @@ main {
   border: 1px solid color-mix(in srgb, var(--primary-color) 24%, var(--border-color));
 }
 
-body.dark .demo-login-info {
+:root.dark body .demo-login-info {
   color: var(--text-color);
 }
 
@@ -355,8 +355,8 @@ select {
   outline: none;
 }
 
-body.dark input,
-body.dark select {
+:root.dark body input,
+:root.dark body select {
   background: var(--surface-raised);
   color: var(--text-color);
 }
@@ -364,7 +364,7 @@ select option {
   background: var(--surface);
   color: var(--text);
 }
-body.dark select option {
+:root.dark body select option {
   background: var(--surface-raised);
   color: var(--text-color);
 }
@@ -1084,7 +1084,7 @@ button:disabled {
   color: var(--muted);
 }
 
-body.dark .thingspeak-chart {
+:root.dark body .thingspeak-chart {
   background: var(--surface);
 }
 
