@@ -1074,14 +1074,16 @@ function setupTheme() {
   // A választott témát a böngésző megjegyzi, hogy oldalváltás után se álljon vissza.
   const savedTheme = localStorage.getItem("greenhouse-theme");
   const themeToggle = $("themeToggle");
-  if (savedTheme === "dark") document.body.classList.add("dark");
+  if (savedTheme === "dark") document.documentElement.classList.add("dark");
   const updateThemeState = () => {
-    themeToggle.setAttribute("aria-pressed", String(document.body.classList.contains("dark")));
+    themeToggle.setAttribute("aria-pressed", String(document.documentElement.classList.contains("dark")));
   };
   updateThemeState();
   themeToggle.addEventListener("click", () => {
-    document.body.classList.toggle("dark");
-    localStorage.setItem("greenhouse-theme", document.body.classList.contains("dark") ? "dark" : "light");
+    document.documentElement.classList.toggle("dark");
+    const theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+    localStorage.setItem("greenhouse-theme", theme);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#121813" : "#f3f6f1");
     updateThemeState();
   });
 }

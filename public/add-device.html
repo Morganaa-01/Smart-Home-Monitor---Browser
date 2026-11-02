@@ -5,6 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#f3f6f1" />
   <title>Eszközök kezelése | Okos Növényház</title>
+  <script>
+    // Az eszközoldalon is a főoldalon kiválasztott témát használjuk már a betöltés elején.
+    try {
+      if (localStorage.getItem("greenhouse-theme") === "dark") {
+        document.documentElement.classList.add("dark");
+        document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#121813");
+      }
+    } catch {
+      // Ha a böngésző tiltja a helyi tárolást, az oldal ettől még betöltődik.
+    }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
