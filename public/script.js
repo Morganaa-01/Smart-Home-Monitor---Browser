@@ -1293,7 +1293,7 @@ function initializeDashboard() {
       addActivityLog(`A mérési jelentés PDF-ként letöltődött (${name}).`);
     } catch (error) {
       addActivityLog(error.message, "error");
-      window.alert(error.message);
+      await window.AppDialog.alert(error.message, "Hiba");
     }
   });
   $("emailPdfBtn").addEventListener("click", async () => {
@@ -1304,11 +1304,14 @@ function initializeDashboard() {
         addActivityLog("A PDF-jelentés átadva a megosztási ablaknak.");
       } else if (result.method === "mailto") {
         addActivityLog(`A PDF letöltődött (${result.fileName}); csatold a megnyílt levélhez.`);
-        window.alert(`A PDF letöltődött: ${result.fileName}\n\nA levelező megnyílik – a küldés előtt csatold hozzá a letöltött fájlt.`);
+        await window.AppDialog.alert(
+          `A PDF letöltődött: ${result.fileName}\n\nA levelező megnyílik – a küldés előtt csatold hozzá a letöltött fájlt.`,
+          "PDF letöltve"
+        );
       }
     } catch (error) {
       addActivityLog(error.message, "error");
-      window.alert(error.message);
+      await window.AppDialog.alert(error.message, "Hiba");
     }
   });
   $("refreshDataBtn").addEventListener("click", () => {
