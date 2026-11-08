@@ -41,3 +41,22 @@ npm start
 A helyi szerver a projekt gyökérmappájában lévő `.env` fájlból olvassa az `OPENAI_API_KEY`, `THINGSPEAK_CHANNEL_ID`, `THINGSPEAK_READ_API_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` és `SESSION_SECRET` változókat. A `.env` fájlt ne töltsd fel verziókezelőbe. Tárhelyre telepítéskor ugyanezeket a változókat a tárhely környezeti beállításai között add meg.
 
 Az AI-chat szerver nélkül is megjelenik, de válaszolni csak az API-kulcs beállítása után tud. A ThingSpeak élő adatai internetkapcsolatot igényelnek.
+# Mérési jelentés mentése
+
+A Környezeti mérések mellett a **Mentés PDF-be** gomb azonnal letölt egy egyoldalas,
+A4-es PDF-fájlt (`noveny-haz-jelentes-ÉÉÉÉ-HH-NN.pdf`). A PDF a böngészőben készül,
+külső könyvtár és szerver nélkül.
+
+A **Küldés e-mailben** gomb ugyanezt a PDF-et e-mailhez készíti elő:
+
+- Ahol a böngésző támogatja a fájlmegosztást (Windows 10/11 Chrome és Edge, Android, iOS),
+  megnyílik a rendszer megosztási ablaka; ott a levelezőalkalmazást (Posta, Outlook, Gmail)
+  választva a PDF már csatolva van.
+- Más böngészőben a PDF letöltődik, és megnyílik az alapértelmezett levelező kitöltött
+  tárggyal. Itt a letöltött fájlt kézzel kell csatolni, mert a `mailto:` hivatkozás
+  csatolmányt nem tud átadni.
+
+A jelentés a legutóbb betöltött nyolc mérést és eszközállapotot, a mérés idejét
+és a jelentés készítésének idejét tartalmazza. Régi vagy hiányzó adatot külön jelöl.
+Nem exportálja a chatet, a belépési adatokat vagy az API-kulcsokat.
+A gombok az első mérés betöltéséig nem használhatók.

@@ -128,6 +128,8 @@
       <div class="dashboard-heading-actions">
         <a class="button secondary" href="add-device.html"><span class="material-symbols-rounded" aria-hidden="true">add</span><span>Eszköz hozzáadása</span></a>
         <button class="button secondary" id="refreshDataBtn" type="button">Frissítés</button>
+        <button class="button secondary" id="exportPdfBtn" type="button" disabled><span class="material-symbols-rounded" aria-hidden="true">picture_as_pdf</span><span>Mentés PDF-be</span></button>
+        <button class="button secondary" id="emailPdfBtn" type="button" disabled><span class="material-symbols-rounded" aria-hidden="true">mail</span><span>Küldés e-mailben</span></button>
       </div>
     </section>
     <p class="muted section-intro">Az értékeket az ESP32 tölti fel a ThingSpeak csatornára. A felület 30 másodpercenként frissül.</p>
@@ -282,6 +284,7 @@
 
   <footer class="site-footer"><p>IoT-alapú okos növényház · ESP32 · ThingSpeak</p></footer>
   </div>
+  <script src="measurement-report.js" defer></script>
   <script src="script.js" defer></script>
 </body>
 </html>
