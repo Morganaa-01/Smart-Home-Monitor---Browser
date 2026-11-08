@@ -16,6 +16,8 @@ const state = {
   readings: null,
   lastEntry: null,
   lastChartFetchedAt: null,
+  chartFeeds: null,
+  chartPeriodLabel: "",
   refreshTimer: null,
   chartRefreshTimer: null
 };
@@ -771,6 +773,9 @@ async function loadChartHistory({ quiet = false } = {}) {
 
     const feeds = Array.isArray(data.feeds) ? data.feeds : [];
     renderThingSpeakCharts(feeds);
+    // Kept so the PDF report can include the same charts that are on screen.
+    state.chartFeeds = feeds;
+    state.chartPeriodLabel = `${rangeLabel} · ${new Intl.NumberFormat("hu-HU").format(feeds.length)} mérési pont`;
     state.lastChartFetchedAt = new Date();
     const latestMeasurement = feeds.at(-1)?.created_at;
     const periodSummary = chartCustomRangeActive
@@ -1225,6 +1230,8 @@ function initializeDashboard() {
   setupMetricEditor();
   setupChartEditor();
   // The PDF module is a separate file; if it is missing (e.g. an old cached version), show a readable message.
+  // The history charts are added as a second page when they have been loaded.
+  const reportOptions = () => ({ feeds: state.chartFeeds, periodLabel: state.chartPeriodLabel });
   const getReportModule = () => {
     if (!state.lastEntry) throw new Error("Még nincs exportálható mérés.");
     const report = window.GreenhouseReport;
@@ -1237,7 +1244,7 @@ function initializeDashboard() {
     try {
       // The report uses the loaded data; demo toggles do not override the device states.
       const report = getReportModule();
-      const name = report.download(state.lastEntry);
+      const name = report.download(state.lastEntry, reportOptions());
       addActivityLog(`A mérési jelentés PDF-ként letöltődött (${name}).`);
     } catch (error) {
       addActivityLog(error.message, "error");
@@ -1247,7 +1254,7 @@ function initializeDashboard() {
   $("emailPdfBtn").addEventListener("click", async () => {
     try {
       const report = getReportModule();
-      const result = await report.sendByEmail(state.lastEntry);
+      const result = await report.sendByEmail(state.lastEntry, reportOptions());
       if (result.method === "share") {
         addActivityLog("A PDF-jelentés átadva a megosztási ablaknak.");
       } else if (result.method === "mailto") {
