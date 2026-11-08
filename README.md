@@ -46,23 +46,25 @@ Az AI-chat szerver nélkül is megjelenik, de válaszolni csak az API-kulcs beá
 
 ## Mérési jelentés mentése és küldése e-mailben
 
-A Környezeti mérések mellett a **Mentés PDF-be** gomb azonnal letölt egy A4-es PDF-fájlt
-(`noveny-haz-jelentes-ÉÉÉÉ-HH-NN.pdf`). A PDF a böngészőben készül,
-külső könyvtár és szerver nélkül.
+A **Mérési előzmények** résznél, a Szűrés és a Frissítés gomb mellett két gomb van:
 
-A **Küldés e-mailben** gomb ugyanezt a PDF-et e-mailhez készíti elő:
+- **Mentés PDF-be**: azonnal letölt egy A4-es PDF-fájlt (`noveny-haz-jelentes-ÉÉÉÉ-HH-NN.pdf`).
+  A PDF a böngészőben készül, külső könyvtár és szerver nélkül.
+- **Küldés e-mailben**: ugyanezt a PDF-et készíti elő e-mailhez.
+  - Ahol a böngésző támogatja a fájlmegosztást (Windows 10/11 Chrome és Edge, Android, iOS),
+    megnyílik a rendszer megosztási ablaka; ott a levelezőalkalmazást (Posta, Outlook, Gmail)
+    választva a PDF már csatolva van.
+  - Más böngészőben a PDF letöltődik, és megnyílik az alapértelmezett levelező kitöltött
+    tárggyal. Itt a letöltött fájlt kézzel kell csatolni, mert a `mailto:` hivatkozás
+    csatolmányt nem tud átadni.
 
-- Ahol a böngésző támogatja a fájlmegosztást (Windows 10/11 Chrome és Edge, Android, iOS),
-  megnyílik a rendszer megosztási ablaka; ott a levelezőalkalmazást (Posta, Outlook, Gmail)
-  választva a PDF már csatolva van.
-- Más böngészőben a PDF letöltődik, és megnyílik az alapértelmezett levelező kitöltött
-  tárggyal. Itt a letöltött fájlt kézzel kell csatolni, mert a `mailto:` hivatkozás
-  csatolmányt nem tud átadni.
+Mit tartalmaz a PDF:
 
-Az első oldal a legutóbb betöltött nyolc mérést és eszközállapotot, a mérés idejét
-és a jelentés készítésének idejét tartalmazza.
-Ha a grafikonok már betöltődtek, a második oldalon a nyolc mérés előzménygrafikonja is
-szerepel, ugyanarra az időszakra, amelyet a grafikonok szűrőjében kiválasztottál.
-Régi vagy hiányzó adatot külön jelöl.
-Nem exportálja a chatet, a belépési adatokat vagy az API-kulcsokat.
+- **Szűrés nélkül** (az alapértelmezett utolsó 60 mérés látszik) csak az általános adatok:
+  a legutóbb betöltött nyolc mérés és eszközállapot, a mérés ideje és a jelentés készítésének ideje.
+  Régi vagy hiányzó adatot külön jelöl.
+- **Szűrés után** (másik gyors időszak vagy egyéni időszak) a következő oldalakon a grafikonok is
+  szerepelnek: ugyanúgy, ugyanazzal a kinézettel és ugyanarra az időszakra, ahogy az oldalon látod őket.
+
+A PDF nem tartalmazza a chatet, a belépési adatokat és az API-kulcsokat.
 A gombok az első mérés betöltéséig nem használhatók.
