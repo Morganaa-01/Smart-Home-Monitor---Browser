@@ -1,11 +1,7 @@
-/*
-Az AI számára elérhető adatlekérések és összesítések.
-Az eszközleírások megmondják a modellnek, mit kérhet; a fájl végén
-lévő elágazás választja ki a ténylegesen futó függvényt.
-A hiányzó adat nem nullás mérés. A ritkított mintasor csökkenti
-a válasz méretét, az összesítések a lekért adatokból készülnek.
-*/
-// Az asszisztens innen olvashatja ki a friss és korábbi szenzoradatokat, valamint az azokból számolt összesítéseket.
+// Data lookups and summaries the AI can use.
+// The tool descriptions tell the model what it may ask for, and the switch at the end of the file
+// picks the function that really runs. A missing value is not a zero. The samples are thinned out
+// to keep the reply small, and the summaries are calculated from the fetched data.
 import { fetchThingSpeakFeeds } from "./thingspeak.js";
 import { GREENHOUSE_CONFIG } from "./greenhouse-config.js";
 
@@ -29,7 +25,7 @@ const BUDAPEST_FORMATTER = new Intl.DateTimeFormat("en-GB", {
 });
 
 function formatBudapestTimestamp(timestamp) {
-  // A ThingSpeak UTC-időpontját úgy alakítjuk át, hogy a budapesti dátum és idő is megmaradjon.
+  // Convert the ThingSpeak UTC time but keep the Budapest date and time too.
   if (!timestamp) return null;
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return null;
@@ -60,7 +56,7 @@ function addBudapestTime(sample) {
 }
 
 function budapestMidnightUtc(dateString) {
-  // A megadott naptári nap kezdetét UTC-re váltjuk; így az óraátállítás is helyesen működik.
+  // Convert the start of the given day to UTC. This also works on daylight-saving days.
   if (!DATE_ONLY_PATTERN.test(dateString)) return null;
   const [year, month, day] = dateString.split("-").map(Number);
   const target = Date.UTC(year, month - 1, day);
@@ -125,7 +121,7 @@ export const GREENHOUSE_TOOLS = [
   }
 ];
 
-// A 0 érvényes mérés. Csak a hiányzó vagy hibás értékből legyen null.
+// 0 is a valid measurement. Only missing or invalid values become null.
 function numericValue(value) {
   if (value === null || value === undefined || (typeof value === "string" && value.trim() === "")) return null;
   const number = Number(value);
@@ -133,7 +129,7 @@ function numericValue(value) {
 }
 
 function latestFeed(data) {
-  // A ThingSpeak-sor rövid field neveit itt beszédes nevekhez rendeljük az asszisztensnek.
+  // Give the short field names of a ThingSpeak row readable names for the assistant.
   const feed = data.feeds.at(-1);
   if (!feed) {
     const error = new Error("A ThingSpeak-csatornában még nincs mérési adat.");
@@ -167,7 +163,7 @@ function formatThingSpeakDate(date) {
   return date.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "");
 }
 
-// Az időszakból elosztva választunk mintákat, nem kell minden pontot a modellnek elküldeni.
+// Pick samples evenly from the period, so not every point goes to the model.
 function downsample(feeds, field) {
   const valid = feeds
     .map((feed) => ({ recorded_at: feed.created_at, value: numericValue(feed[field]) }))
@@ -179,9 +175,9 @@ function downsample(feeds, field) {
   return Array.from({ length: MAX_HISTORY_SAMPLES }, (_, index) => valid[Math.round(index * step)]);
 }
 
-// Ez minták szerinti átlag, nem idővel súlyozott érték. Szabálytalan mintavételnél ez különbség.
+// This is an average per sample, not weighted by time. It matters when the sampling is irregular.
 function summarizeField(feeds, field) {
-  // A hiányzó mező kimarad, a 0 viszont érvényes mérési érték marad.
+  // A missing field is skipped, but 0 stays a valid value.
   const values = feeds
     .map((feed) => ({ recorded_at: feed.created_at, value: numericValue(feed[field]) }))
     .filter((sample) => sample.recorded_at && sample.value !== null);
@@ -222,7 +218,7 @@ function summarizeField(feeds, field) {
   return summary;
 }
 
-// Időrendbe rendezzük az adatokat; nagy adatszünet után külön eseményt kezdünk.
+// Sort by time. After a big data gap start a new event.
 function summarizeLastActiveEvent(feeds, field) {
   const readings = feeds
     .map((feed) => ({ timestamp: Date.parse(feed.created_at), value: numericValue(feed[field]) }))
@@ -232,7 +228,7 @@ function summarizeLastActiveEvent(feeds, field) {
   let currentEvent = null;
   let lastEvent = null;
   let lastEventIsActive = false;
-  // A kikapcsolt állapot lezárja a jelzést; nagy adatszünet után külön eseményt kezdünk.
+  // An inactive state ends the signal. After a big gap start a new event.
   for (const reading of readings) {
     if (reading.value !== 1) {
       if (currentEvent) {
@@ -265,21 +261,21 @@ function summarizeLastActiveEvent(feeds, field) {
   }
   if (!lastEvent) return null;
 
-  // A ThingSpeak 30 másodpercenként küld mintát, ezért az esemény hossza becslés.
+  // ThingSpeak gets a sample every 30 seconds, so the event length is only an estimate.
   return {
     started_at_budapest: formatBudapestTimestamp(new Date(lastEvent.firstTimestamp).toISOString()),
     last_active_at_budapest: formatBudapestTimestamp(new Date(lastEvent.lastTimestamp).toISOString()),
     active_samples: lastEvent.activeSamples,
-    // A dátumok különbsége ezredmásodperc. Ehhez csak átváltás után adhatunk másodpercet.
+    // The date difference is in milliseconds, so convert before adding seconds.
     estimated_duration_seconds: (lastEvent.lastTimestamp - lastEvent.firstTimestamp) / 1000 + THINGSPEAK_UPLOAD_INTERVAL_SECONDS,
     is_active_at_end: lastEventIsActive,
     duration_is_estimated: true
   };
 }
 
-// Csak közeli, megfelelő minták közti idővel számolunk. Adathiányon át nem feltételezünk világosságot.
+// Only use the time between samples that are close to each other. No light is assumed over a gap.
 function calculateSunlightHours(feeds) {
-  // Csak két egymást követő, 600 lux fölötti minta közötti időt számítjuk megvilágítottnak.
+  // Only the time between two samples in a row above 600 lux counts as lit.
   const lightReadings = feeds
     .map((feed) => ({ timestamp: Date.parse(feed.created_at), value: numericValue(feed.field4) }))
     .filter((reading) => Number.isFinite(reading.timestamp) && reading.value !== null)
@@ -298,14 +294,14 @@ function calculateSunlightHours(feeds) {
     const next = lightReadings[index + 1];
     const intervalSeconds = (next.timestamp - current.timestamp) / 1000;
     if (intervalSeconds <= 0) continue;
-    // Hosszabb adatszünetet nem számítunk napsütésnek, mert nem tudjuk, mi történt közben.
+    // A longer data gap does not count as sunshine, because we do not know what happened.
     if (intervalSeconds > MAX_SUNLIGHT_SAMPLE_GAP_SECONDS) {
       skippedLongGaps += 1;
       continue;
     }
     if (current.value <= SUNLIGHT_THRESHOLD_LUX || next.value <= SUNLIGHT_THRESHOLD_LUX) continue;
 
-    // A két egymást követő, küszöb feletti minta közötti időt a helyi napokhoz adjuk.
+    // Add the time between two samples above the threshold to the local days.
     let cursor = current.timestamp;
     while (cursor < next.timestamp) {
       const day = budapestDate(new Date(cursor).toISOString());
@@ -340,7 +336,7 @@ async function getLatestSensorData() {
 }
 
 async function getSensorHistory(args) {
-  // A naptári napokra bontást Budapest helyi ideje szerint végezzük.
+  // Split into calendar days by Budapest local time.
   if (!HISTORY_FIELDS.includes(args.field)) {
     throw new Error("A kért ThingSpeak mező nem érvényes.");
   }
@@ -353,7 +349,7 @@ async function getSensorHistory(args) {
       throw new Error("A dátumtartományt YYYY-MM-DD formában, kezdő és záró nappal kell megadni.");
     }
     start = budapestMidnightUtc(args.start_date);
-    // A JavaScript például február 30-át márciusra igazítaná. Ezt még az átalakítás előtt elutasítjuk.
+    // JavaScript would turn 30 February into March, so reject it before converting.
     if (!start || !budapestMidnightUtc(args.end_date)) {
       throw new Error("A megadott budapesti dátumtartomány nem érvényes.");
     }
@@ -373,7 +369,7 @@ async function getSensorHistory(args) {
     start: formatThingSpeakDate(start),
     end: formatThingSpeakDate(end)
   });
-  // A záró időpontot kizárjuk, hogy a szomszédos időszakokban ne duplázódjon egy minta.
+  // The end time is excluded, so a sample is not counted twice in neighbouring periods.
   const feeds = data.feeds.filter((feed) => {
     const timestamp = Date.parse(feed.created_at);
     return Number.isFinite(timestamp) && timestamp >= start.getTime() && timestamp < end.getTime();
@@ -415,7 +411,7 @@ async function getSensorHistory(args) {
   };
 }
 
-// A modell csak az itt felsorolt függvényeket kérheti, tetszőleges kódot nem futtathat.
+// The model can only call the functions listed here, it cannot run any code.
 export async function runGreenhouseTool(name, args = {}) {
   switch (name) {
     case "get_latest_sensor_data":

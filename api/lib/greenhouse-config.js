@@ -1,10 +1,6 @@
-/*
-A szenzormezők közös leírása.
-A mezők sorszámainak egyezniük kell a mikrovezérlő adatküldésével:
-ha ott változik a kiosztás, ezt a megfeleltetést is módosítani kell.
-A fényküszöb számítási szabály, nem növényfajta szerinti célérték.
-*/
-// Itt vannak egy helyen a növényházi eszközök, a ThingSpeak-mezők és az értelmezésükhöz szükséges beállítások.
+// Description of the sensor fields.
+// The field numbers must match what the ESP32 sends. If the firmware changes, change them here too.
+// The light threshold is a calculation rule, not a target value for any plant species.
 export const GREENHOUSE_CONFIG = Object.freeze({
   controller: "ESP32",
   automationLocation: "local_device",

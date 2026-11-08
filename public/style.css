@@ -1,4 +1,4 @@
-/* A főoldal és az eszközkezelő közös színei, elrendezései és mobilnézeti szabályai. */
+/* Shared colours, layouts and mobile rules of the main page and the device manager. */
 :root {
   --bg: #f3f6f1;
   --surface: #ffffff;
@@ -82,7 +82,7 @@ body {
   transition: background-color 180ms ease, color 180ms ease;
 }
 
-/* ===== Rögzített, áttetsző navigáció ===== */
+/* ===== Fixed, translucent navigation ===== */
 
 a {
   color: inherit;
@@ -190,7 +190,7 @@ a {
   border-color: var(--primary-color);
 }
 
-/* ===== Felső bemutató rész ===== */
+/* ===== Top intro section ===== */
 
 .hero {
   display: grid;
@@ -242,7 +242,7 @@ a {
   border-top: 1px solid var(--border-color);
 }
 
-/* ===== Elrendezés ===== */
+/* ===== Layout ===== */
 
 main {
   width: min(1120px, 92%);
@@ -271,7 +271,7 @@ main {
   font-weight: bold;
 }
 
-/* ===== Bejelentkezés ===== */
+/* ===== Login ===== */
 
 .login-card {
   max-width: 460px;
@@ -296,7 +296,7 @@ main {
   color: var(--text-color);
 }
 
-/* ===== Irányítópult nyitó része ===== */
+/* ===== Dashboard heading ===== */
 
 .hero-section {
   margin-bottom: 1.5rem;
@@ -335,7 +335,7 @@ main {
   color: #d7f0dc;
 }
 
-/* ===== Űrlapok és gombok ===== */
+/* ===== Forms and buttons ===== */
 
 label {
   display: block;
@@ -414,7 +414,7 @@ button:hover {
   flex-wrap: wrap;
 }
 
-/* ===== Irányítópult ===== */
+/* ===== Dashboard ===== */
 
 .dashboard-topbar {
   display: flex;
@@ -464,7 +464,7 @@ button:hover {
   margin: 0.4rem 0 1rem;
 }
 
-/* ===== Eszközök ===== */
+/* ===== Devices ===== */
 
 .device-grid {
   display: grid;
@@ -502,7 +502,7 @@ button:hover {
   color: var(--muted-color);
 }
 
-/* ===== Okos növényház irányítópultja ===== */
+/* ===== Smart greenhouse dashboard ===== */
 .greenhouse-hero {
   padding-top: 2rem;
   padding-bottom: 3.5rem;
@@ -797,7 +797,7 @@ button:disabled {
   background: color-mix(in srgb, var(--surface) 96%, var(--primary-color));
 }
 
-/* ===== Időjárás ===== */
+/* ===== Weather ===== */
 
 .weather-form {
   display: grid;
@@ -904,7 +904,7 @@ button:disabled {
   font-weight: 700;
 }
 
-/* ===== Chatablak ===== */
+/* ===== Chat window ===== */
 
 .chat-card {
   overflow: hidden;
@@ -956,7 +956,7 @@ button:disabled {
   margin: 0;
 }
 
-/* ===== ThingSpeak-grafikonok ===== */
+/* ===== ThingSpeak charts ===== */
 
 #thingspeak {
   padding: 1rem 0;
@@ -1089,7 +1089,7 @@ button:disabled {
   background: var(--surface);
 }
 
-/* ===== Eszköz hozzáadása oldal ===== */
+/* ===== Add device page ===== */
 
 .compact-header {
   min-height: auto;
@@ -1150,7 +1150,7 @@ button:disabled {
   background: var(--danger-button-hover);
 }
 
-/* ===== Lenyíló navigáció ===== */
+/* ===== Dropdown navigation ===== */
 
 .dropdown {
   position: relative;
@@ -1219,7 +1219,7 @@ button:disabled {
   height: 0.5rem;
 }
 
-/* ===== Lábléc ===== */
+/* ===== Footer ===== */
 
 footer {
   text-align: center;
@@ -1227,7 +1227,7 @@ footer {
   color: var(--muted-color);
 }
 
-/* ===== Különböző képernyőméretek ===== */
+/* ===== Different screen sizes ===== */
 
 @media (max-width: 1100px) {
   .dashboard-grid,
@@ -1399,7 +1399,7 @@ footer {
   }
 }
 
-/* Az irányítópult külön stílusai az alapbeállítások után következnek. */
+/* The dashboard-specific styles come after the base styles. */
 .dashboard-grid.greenhouse-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }

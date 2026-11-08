@@ -1,15 +1,15 @@
 /*
- * A gombok és az adatbeviteli vezérlők megjelenését ezekből a Flet Studio példákból merítettük;
- * itt igazítjuk őket az alkalmazás saját színeihez és elrendezéséhez:
- * Gombok: https://studio.flet.dev/gallery/buttons
- * Automatikus kiegészítés: https://studio.flet.dev/gallery/input/autocomplete
- * Kártyák: https://studio.flet.dev/gallery/layout/card
- * Kártyatartalom-példa: https://studio.flet.dev/gallery/layout/card/example/controls/material/card/music_info
- * Kapcsolók: https://studio.flet.dev/gallery/input/switch
- * Kapcsolóminta: https://studio.flet.dev/gallery/input/switch/example/controls/material/switch/switch
- * Vonaldiagramok: https://studio.flet.dev/gallery/charts
- * Egyedi tengelyű vonaldiagram: https://studio.flet.dev/gallery/charts/linechart
- * A színek szerepkörei a Flet Material témáját követik: https://flet.dev/docs/cookbook/colors/
+ * The look of the buttons and input controls is based on these Flet Studio examples.
+ * Here they are adapted to the colours and the layout of the app:
+ * Buttons: https://studio.flet.dev/gallery/buttons
+ * Autocomplete: https://studio.flet.dev/gallery/input/autocomplete
+ * Cards: https://studio.flet.dev/gallery/layout/card
+ * Card content example: https://studio.flet.dev/gallery/layout/card/example/controls/material/card/music_info
+ * Switches: https://studio.flet.dev/gallery/input/switch
+ * Switch example: https://studio.flet.dev/gallery/input/switch/example/controls/material/switch/switch
+ * Line charts: https://studio.flet.dev/gallery/charts
+ * Line chart with custom axes: https://studio.flet.dev/gallery/charts/linechart
+ * The colour roles follow the Flet Material theme: https://flet.dev/docs/cookbook/colors/
  * Ez a CSS a meglévő HTML-alkalmazásban valósítja meg a hasznos megjelenési mintákat.
  */
 :root {
@@ -40,7 +40,7 @@ body.dark {
   --flet-chart-value: #b0e4b5;
 }
 
-/* A Flet automatikus kiegészítőjének mintáját az időjárási településkereséshez igazítottuk. */
+/* Autocomplete style based on the Flet example, adapted to the weather city search. */
 .weather-autocomplete {
   position: relative;
   display: block;
@@ -86,7 +86,7 @@ body.dark {
   transform: none;
 }
 
-/* A Flet kártyapéldáját a növényházi mérési és eszközkártyákhoz igazítottuk. */
+/* Card style based on the Flet card example, used for the measurement and device cards. */
 .greenhouse-grid .sensor-card,
 .greenhouse-devices .device-item {
   border: 1px solid color-mix(in srgb, var(--border-color) 78%, var(--primary-color));
@@ -269,7 +269,7 @@ body.dark {
   outline-offset: 3px;
 }
 
-/* A Flet kitöltött és körvonalas gombjainak mintája. */
+/* Filled and outlined button styles based on Flet. */
 .button,
 button {
   min-height: 44px;
@@ -340,7 +340,7 @@ button:disabled,
   cursor: wait;
 }
 
-/* A Flet vonaldiagramjának mintája: sötét háttér, tengelyek, rács és kiemelt adatsor. */
+/* Line chart style based on Flet: dark background, axes, grid and a highlighted series. */
 .thingspeak-chart {
   min-height: 270px;
   height: 270px;
@@ -556,7 +556,7 @@ button:disabled,
   }
 }
 
-/* A galéria kártyáira, gombjaira és grafikonjaira épülő, projekthez igazított megjelenés. */
+/* Look based on the Flet gallery cards, buttons and charts, adapted to this project. */
 .site-header {
   padding: 1rem clamp(1rem, 4vw, 2.5rem) 0;
 }
@@ -876,7 +876,7 @@ button:disabled,
   }
 }
 
-/* A menügomb méretét a többi kör alakú ikonhoz igazítjuk. */
+/* The menu button has the same size as the other round icons. */
 .navbar .menu-toggle {
   display: none;
   flex: 0 0 44px;
@@ -1091,7 +1091,7 @@ button:disabled,
   }
 }
 
-/* Finom mozgás a Flet implicit animációs és hover mintái alapján. */
+/* Subtle motion based on the Flet implicit animation and hover examples. */
 :root {
   --ui-motion-fast: 150ms;
   --ui-motion-standard: 220ms;
