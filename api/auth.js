@@ -1,10 +1,5 @@
-/*
-A bejelentkezés HTTP-végpontja.
-GET: munkamenet ellenőrzése; POST: belépés; DELETE: kijelentkezés.
-A jelszót a szerver ellenőrzi. A böngésző csak az eredményt és
-sikeres belépéskor egy munkamenet-cookie-t kap vissza.
-*/
-// Bejelentkezési végpont: a munkamenet ellenőrzését, létrehozását és lezárását kezeli.
+// Login endpoint: GET checks the session, POST logs in, DELETE logs out.
+// The password is checked on the server only. The browser just gets a session cookie back.
 import {
   createSessionCookie,
   expiredSessionCookie,
@@ -15,7 +10,7 @@ import {
 export default function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
-  // A GET a munkamenet állapotát adja vissza, a DELETE kijelentkeztet.
+  // GET returns the session state, DELETE logs out.
   if (req.method === "GET") {
     const settings = verifyCredentials("", "");
     if (!settings.configured) {
@@ -34,7 +29,7 @@ export default function handler(req, res) {
     return res.status(405).json({ error: "Nem támogatott kérés." });
   }
 
-  // POST esetén ellenőrizzük a belépési adatokat, és siker esetén küldjük vissza a cookie-t.
+  // POST: check the credentials and send the cookie back if they are correct.
   const username = typeof req.body?.username === "string" ? req.body.username : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   if (!username || !password || username.length > 120 || password.length > 200) {
