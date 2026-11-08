@@ -10,6 +10,8 @@ const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const MAX_TOOL_ROUNDS = 4;
 const MAX_OPENAI_ATTEMPTS = 3;
 
+// OpenAI answers 503 "server_is_overloaded" from time to time. A short retry fixes it most of the time,
+// so the user does not see an error for a one-second problem. Other errors are returned as they are.
 async function fetchOpenAIWithRetry(apiKey, body) {
   // Wait and retry on a network error or when OpenAI is temporarily overloaded.
   for (let attempt = 0; attempt < MAX_OPENAI_ATTEMPTS; attempt += 1) {
@@ -49,6 +51,8 @@ async function fetchOpenAIWithRetry(apiKey, body) {
   }
 }
 
+// Simple keyword check, so we do not need an extra AI call. A time word and a greenhouse word are both needed,
+// so a question like "how is the weather today?" does not start a ThingSpeak query.
 function isHistoricalDataQuestion(message) {
   // For history questions we fetch the ThingSpeak data first, so the AI does not guess.
   if (isLastRainQuestion(message)) return true;
@@ -58,12 +62,14 @@ function isHistoricalDataQuestion(message) {
   return asksAboutTime && asksAboutGreenhouseData;
 }
 
+// "When did it rain last?" is answered by code, not by the model, so the date and the duration come straight from the data.
 function isLastRainQuestion(message) {
   // Remove accents and check the whole message, so a greeting does not matter.
   const normalized = message.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
   return /mikor\w*|utoljara\w*|legutobb\w*/i.test(normalized) && /eso\w*|rain\w*/i.test(normalized);
 }
 
+// Only Hungarian month names are handled, because the chat is Hungarian. The year is the current one if the user does not write it.
 export function extractBudapestDates(message) {
   // Turn the Hungarian month names in the question into calendar days (Budapest time).
   const normalized = message.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
@@ -85,6 +91,7 @@ export function extractBudapestDates(message) {
   return [...new Set(dates)].sort();
 }
 
+// One query for every day keeps the answer limited to the dates the user named. The samples are removed from the summary to keep the prompt short.
 async function getRequestedDaySummaries(dates) {
   // Query each named day on its own. Days in between are not included.
   const days = await Promise.all(dates.map(async (date) => {
@@ -117,6 +124,7 @@ async function getRequestedDaySummaries(dates) {
   };
 }
 
+// 30 days (720 hours) is a compromise: long enough to find the last rain, short enough to stay under the ThingSpeak record limit.
 async function getLastRainSummary() {
   // Look for the most recent rain signal in the last 30 days.
   const result = await runGreenhouseTool("get_sensor_history", {
@@ -194,6 +202,8 @@ function sanitizeConversation(conversation) {
     .slice(-12);
 }
 
+// Everything the model needs goes into one user message: the data from the page, the optional history and the current Budapest time.
+// The model has no clock, so "today" and "yesterday" would be wrong without the time.
 function buildUserInput(message, sensorContext, historyResult = null, conversation = []) {
   // The model gets the question plus the data shown on the page and the data fetched separately.
   const context = JSON.stringify(sensorContext ?? {}, null, 2);
@@ -216,6 +226,8 @@ function buildUserInput(message, sensorContext, historyResult = null, conversati
   }];
 }
 
+// store: false, so the conversation is not kept at OpenAI. Tool calls are turned off when the history is already in the message,
+// otherwise the model would fetch the same data again.
 async function requestModel(apiKey, input, allowToolCalls = true) {
   // Model, instructions and the allowed data tools come together here.
   const response = await fetchOpenAIWithRetry(apiKey, {
@@ -313,6 +325,7 @@ function extractReply(response) {
     .trim();
 }
 
+// Technical errors become short Hungarian messages. The user should not see raw API errors.
 function userFacingError(error) {
   if (error.code === "tool_call_limit_reached") return error.message;
   if (error.statusCode === 401) return "Az OpenAI API-kulcs érvénytelen vagy nem fér hozzá ehhez a projekthez.";
@@ -331,6 +344,7 @@ function userFacingError(error) {
   return "Az asszisztens most nem érhető el. Ellenőrizd a szerver AI- és ThingSpeak-beállításait, majd próbáld újra.";
 }
 
+// Order matters: login, method, input checks, API key, and only then the real work. Cheap checks come first.
 export default async function handler(req, res) {
   // The chat needs an active session and a POST request.
   if (!requireAuthentication(req, res)) return;

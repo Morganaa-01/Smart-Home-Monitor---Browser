@@ -82,6 +82,7 @@ function saveDevices() {
   localStorage.setItem("smartHomeDevices", JSON.stringify(devices));
 }
 
+// Dates are saved as ISO strings, the page shows them in Budapest time.
 function formatDate(dateString) {
   if (!dateString) {
     return "Nincs adat";
@@ -93,6 +94,8 @@ function formatDate(dateString) {
     : date.toLocaleString("hu-HU", { timeZone: "Europe/Budapest" });
 }
 
+// The small log writer of script.js is copied here, because this page does not load script.js.
+// TODO: move the localStorage helpers into one shared file.
 function logDeviceActivity(message) {
   // Write to the same local activity log that the main page shows.
   try {
@@ -105,6 +108,7 @@ function logDeviceActivity(message) {
   }
 }
 
+// textContent is used for the value, so what the user typed can never become HTML.
 function addDetail(container, label, value) {
   const line = document.createElement("p");
   const name = document.createElement("strong");
@@ -172,6 +176,7 @@ function renderDevices() {
   });
 }
 
+// Clearing editIndexInput switches the form back from edit mode to add mode.
 function resetForm() {
   // After saving or cancelling, reset the form for a new device.
   deviceForm.reset();
@@ -198,6 +203,7 @@ function editDevice(index) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+// There is no undo, so the confirm dialog is the only safety.
 function deleteDevice(index) {
   // Ask for confirmation before deleting, because the device is removed from the saved list.
   if (!devices[index]) return;
@@ -260,6 +266,7 @@ cancelEditBtn.addEventListener("click", resetForm);
 
 // ---------- Theme and page start ----------
 
+// Same theme code as in script.js, so both pages stay in sync.
 function setupTheme() {
   // Use the same theme setting as the main page, so changing page keeps the theme.
   const storedTheme = localStorage.getItem("greenhouse-theme");
@@ -276,6 +283,7 @@ function setupTheme() {
   });
 }
 
+// Same menu code as in script.js.
 function setupNavigation() {
   const menuButton = document.getElementById("menuToggle");
   const menuIcon = menuButton.querySelector(".material-symbols-rounded");
@@ -296,6 +304,7 @@ function setupNavigation() {
   }));
 }
 
+// Logout is a DELETE to /api/auth, the server clears the cookie because JavaScript cannot touch an HttpOnly cookie.
 function setupLogout() {
   const logoutButton = document.getElementById("logoutBtn");
   if (!logoutButton) return;
@@ -311,6 +320,7 @@ function setupLogout() {
   });
 }
 
+// The device list is only local data, but the page still needs a login, so we check the session before we show anything.
 async function initializeDevicePage() {
   try {
     // Show the page only after the server has confirmed the login.
