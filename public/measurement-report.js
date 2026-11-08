@@ -1,9 +1,9 @@
 /*
-Az aktuálisan betöltött mérésből valódi PDF-fájlt készítünk, külső könyvtár nélkül.
-A jelentést vászonra rajzoljuk (így az ő, ű betűk is helyesen jelennek meg),
-majd a képet egy egyoldalas A4-es PDF-be csomagoljuk.
-A fájl letölthető, vagy a rendszer megosztási ablakával e-mailben elküldhető.
-Másolatot használunk: az automatikus frissítés nem írja át a készülő jelentést.
+Builds a real PDF file from the currently loaded measurement, without external libraries.
+The report is drawn on a canvas (so Hungarian letters such as ő and ű render correctly),
+then the image is wrapped into a single-page A4 PDF.
+The file can be downloaded or sent by email through the system share sheet.
+We work on a copy, so the automatic refresh cannot change a report being generated.
 */
 window.GreenhouseReport = (() => {
   const fields = [
@@ -49,7 +49,7 @@ window.GreenhouseReport = (() => {
     return { measuredAt: formatTime(entry.created_at), exportedAt: formatTime(now), status, rows };
   }
 
-  // A fájlnév a mérés napját tartalmazza, hogy több jelentés ne keveredjen össze.
+  // The file name contains the measurement day, so multiple reports do not get mixed up.
   function fileName(entry) {
     const date = entry && entry.created_at ? new Date(entry.created_at) : new Date();
     const day = Number.isFinite(date.getTime())
@@ -58,7 +58,7 @@ window.GreenhouseReport = (() => {
     return `noveny-haz-jelentes-${day}.pdf`;
   }
 
-  // Egyoldalas PDF egyetlen JPEG-képpel. Csak ASCII szöveg és a kép bájtjai kerülnek bele.
+  // Single-page PDF holding one JPEG image. It only contains ASCII text and the image bytes.
   function createPdf(jpeg, width, height) {
     const encoder = new TextEncoder();
     const chunks = [];
@@ -104,7 +104,7 @@ window.GreenhouseReport = (() => {
     return pdf;
   }
 
-  // A4 lap 150 dpi felbontással. A feliratok szövegként kerülnek a vászonra, HTML-ként nem értelmeződnek.
+  // A4 page at 150 dpi. Labels are drawn as plain text on the canvas, never interpreted as HTML.
   function drawReport(report) {
     const width = 1240;
     const height = 1754;
@@ -156,7 +156,7 @@ window.GreenhouseReport = (() => {
       line(y);
     }
 
-    // A lábjegyzetet szavanként tördeljük, hogy kiférjen a margók közé.
+    // Wrap the footer word by word so it fits between the margins.
     y += 80;
     ctx.fillStyle = "#45564a";
     ctx.font = font(22);
@@ -183,7 +183,7 @@ window.GreenhouseReport = (() => {
     return bytes;
   }
 
-  // Szinkron készül el, hogy a megosztás még a gombnyomáshoz kötött engedéllyel induljon.
+  // Built synchronously so sharing still starts within the permission granted by the button click.
   function createFile(entry) {
     const report = buildReport({ ...entry });
     const canvas = drawReport(report);
@@ -210,10 +210,10 @@ window.GreenhouseReport = (() => {
   }
 
   /*
-  E-mailes küldés: ahol a böngésző támogatja (Windows, Android, iOS), a rendszer
-  megosztási ablaka nyílik meg, és a PDF csatolmányként kerül a levelezőalkalmazásba.
-  Máshol letöltjük a PDF-et, és megnyitjuk a levelezőt kitöltött tárggyal;
-  a mailto: hivatkozás nem tud csatolmányt adni, ezért ott a fájlt kézzel kell hozzáadni.
+  Email sending: where the browser supports it (Windows, Android, iOS), the system
+  share sheet opens and the PDF is attached in the mail app.
+  Elsewhere we download the PDF and open the mail client with a prefilled subject;
+  a mailto: link cannot carry attachments, so there the file has to be attached by hand.
   */
   async function sendByEmail(entry) {
     const file = createFile(entry);
@@ -224,7 +224,7 @@ window.GreenhouseReport = (() => {
         return { method: "share", fileName: file.name };
       } catch (error) {
         if (error && error.name === "AbortError") return { method: "cancelled", fileName: file.name };
-        // Ha a megosztás mégsem indul el, a letöltéses megoldásra váltunk.
+        // If sharing fails to start, fall back to downloading.
       }
     }
     downloadFile(file);
