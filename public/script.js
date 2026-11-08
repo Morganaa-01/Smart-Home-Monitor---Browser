@@ -658,6 +658,8 @@ function renderReadings(entry, saveToCache = true) {
 
   state.readings = fields;
   state.lastEntry = entry;
+  $("exportPdfBtn").disabled = false;
+  $("emailPdfBtn").disabled = false;
   if (saveToCache) {
     try {
       // Így hálózati hiba esetén is marad egy korábbi, megjeleníthető mérés.
@@ -1222,6 +1224,32 @@ function initializeDashboard() {
   setupSummaryEditor();
   setupMetricEditor();
   setupChartEditor();
+  $("exportPdfBtn").addEventListener("click", () => {
+    try {
+      // A jelentés a betöltött adatokról készül, a demókapcsolók nem írják felül az eszközállapotokat.
+      if (!state.lastEntry) throw new Error("Még nincs exportálható mérés.");
+      const name = window.GreenhouseReport.download(state.lastEntry);
+      addActivityLog(`A mérési jelentés PDF-ként letöltődött (${name}).`);
+    } catch (error) {
+      addActivityLog(error.message, "error");
+      window.alert(error.message);
+    }
+  });
+  $("emailPdfBtn").addEventListener("click", async () => {
+    try {
+      if (!state.lastEntry) throw new Error("Még nincs exportálható mérés.");
+      const result = await window.GreenhouseReport.sendByEmail(state.lastEntry);
+      if (result.method === "share") {
+        addActivityLog("A PDF-jelentés átadva a megosztási ablaknak.");
+      } else if (result.method === "mailto") {
+        addActivityLog(`A PDF letöltődött (${result.fileName}); csatold a megnyílt levélhez.`);
+        window.alert(`A PDF letöltődött: ${result.fileName}\n\nA levelező megnyílik – a küldés előtt csatold hozzá a letöltött fájlt.`);
+      }
+    } catch (error) {
+      addActivityLog(error.message, "error");
+      window.alert(error.message);
+    }
+  });
   $("refreshDataBtn").addEventListener("click", () => {
     loadLatestReadings();
     loadChartHistory({ quiet: true });
