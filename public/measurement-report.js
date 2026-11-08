@@ -18,6 +18,7 @@ window.GreenhouseReport = (() => {
     + "a mentés nem indít új mérést. Az esőérzékelő csapadékmennyiséget nem mér.";
   const EMAIL_SUBJECT = "Okos Növényház - mérési jelentés";
 
+  // Budapest time like on the rest of the page.
   function formatTime(value) {
     const date = value ? new Date(value) : null;
     return date && Number.isFinite(date.getTime())
@@ -27,6 +28,7 @@ window.GreenhouseReport = (() => {
       : "Nincs megadva";
   }
 
+  // Returns plain data without any DOM, so it can be tested in Node. Missing values become "Nincs adat" and not 0.
   function buildReport(entry, now = new Date()) {
     if (!entry || typeof entry !== "object") throw new Error("Még nincs exportálható mérés.");
     const timestamp = entry.created_at ? Date.parse(entry.created_at) : NaN;
@@ -279,6 +281,7 @@ window.GreenhouseReport = (() => {
     return pages;
   }
 
+  // canvas.toDataURL gives base64, but the PDF needs the raw JPEG bytes.
   function base64ToBytes(base64) {
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
@@ -286,6 +289,7 @@ window.GreenhouseReport = (() => {
     return bytes;
   }
 
+  // One canvas becomes one JPEG page of the PDF.
   function toPage(canvas) {
     const jpeg = base64ToBytes(canvas.toDataURL("image/jpeg", 0.92).split(",")[1]);
     return { jpeg, width: canvas.width, height: canvas.height };
@@ -301,6 +305,7 @@ window.GreenhouseReport = (() => {
     return new File([createPdf(pages)], fileName(entry), { type: "application/pdf" });
   }
 
+  // Temporary link for the download. The object URL is released after a few seconds, so the memory is freed.
   function downloadFile(file) {
     const url = URL.createObjectURL(file);
     const link = document.createElement("a");
@@ -312,6 +317,7 @@ window.GreenhouseReport = (() => {
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
+  // Saves the PDF on the computer and returns the file name for the activity log.
   async function download(entry, options) {
     const file = await createFile(entry, options);
     downloadFile(file);

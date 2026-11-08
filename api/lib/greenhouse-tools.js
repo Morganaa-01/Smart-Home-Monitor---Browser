@@ -24,6 +24,7 @@ const BUDAPEST_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23"
 });
 
+// The Budapest offset (+01:00 or +02:00) is calculated with Intl, not hard coded, because of daylight saving time.
 function formatBudapestTimestamp(timestamp) {
   // Convert the ThingSpeak UTC time but keep the Budapest date and time too.
   if (!timestamp) return null;
@@ -47,14 +48,17 @@ function formatBudapestTimestamp(timestamp) {
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}${offset}`;
 }
 
+// Date part (YYYY-MM-DD) of the Budapest time. Used to group samples by local day.
 function budapestDate(timestamp) {
   return formatBudapestTimestamp(timestamp)?.slice(0, 10) || "unknown";
 }
 
+// The local time is added next to the UTC one, so the model does not need to convert time zones.
 function addBudapestTime(sample) {
   return { ...sample, recorded_at_budapest: formatBudapestTimestamp(sample.recorded_at) };
 }
 
+// Local midnight is not always at the same UTC hour (summer and winter time), so the offset is calculated in a loop.
 function budapestMidnightUtc(dateString) {
   // Convert the start of the given day to UTC. This also works on daylight-saving days.
   if (!DATE_ONLY_PATTERN.test(dateString)) return null;
@@ -128,6 +132,7 @@ function numericValue(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+// An empty channel throws an error, because "no data" must not look like a row of zeros.
 function latestFeed(data) {
   // Give the short field names of a ThingSpeak row readable names for the assistant.
   const feed = data.feeds.at(-1);
@@ -159,6 +164,7 @@ function latestFeed(data) {
   };
 }
 
+// ThingSpeak wants "YYYY-MM-DD HH:MM:SS" in start and end, not the ISO format with T and Z.
 function formatThingSpeakDate(date) {
   return date.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "");
 }
@@ -330,11 +336,14 @@ function calculateSunlightHours(feeds) {
   };
 }
 
+// results: 1 is enough, the age of the data is calculated in latestFeed.
 async function getLatestSensorData() {
   const data = await fetchThingSpeakFeeds({ results: 1 });
   return latestFeed(data);
 }
 
+// Main history tool of the AI: reads the arguments, fetches the feeds and makes the summary of each field.
+// The model can ask for the last N hours or for a date range.
 async function getSensorHistory(args) {
   // Split into calendar days by Budapest local time.
   if (!HISTORY_FIELDS.includes(args.field)) {
