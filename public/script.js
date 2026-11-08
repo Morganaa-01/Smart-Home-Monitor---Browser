@@ -1,3 +1,12 @@
+/*
+A főoldal böngészőben futó működése.
+Az API méréseiből frissülnek a kártyák, grafikonok és a chat környezeti adatai.
+A localStorage őrzi a helyi beállításokat és a beszélgetést:
+ez böngészőhöz és webcímhez kötődik, nem közös szerveres adatbázis.
+A fájl végén indul a belépés ellenőrzése. A felület elrejtése mellett
+az API-k külön is ellenőrzik a jogosultságot.
+*/
+// A főoldal működését vezérli: adatokat és grafikonokat tölt be, kezeli az időjárást, a témát és az AI-chatet.
 // Ennyi időnként kér új méréseket az irányítópult a ThingSpeaktől.
 const REFRESH_INTERVAL_MS = 30_000;
 const CHART_REFRESH_INTERVAL_MS = 5 * 60_000;
@@ -52,6 +61,7 @@ function saveChatHistory() {
   }
 }
 
+// Visszatöltéskor nem mentjük újra egyesével az üzeneteket, így nem lesznek ismétlődő bejegyzések.
 function restoreChatHistory() {
   // Visszatöltjük az utolsó üzeneteket; az addChatMessage hamis paramétere megakadályozza az újramentést.
   const messages = getSavedChatHistory();
@@ -66,6 +76,7 @@ function restoreChatHistory() {
 }
 
 // Az utolsó mérés gyorsítótára induláskor megjelenik, amíg a friss lekérés befejeződik.
+// A mentett érték gyorsan megjelenhet, de az eredeti mérési idő marad mellette: ettől még nem friss adat.
 function restoreCachedReading() {
   try {
     const entry = JSON.parse(localStorage.getItem(SENSOR_CACHE_KEY) || "null");
@@ -84,6 +95,7 @@ function getActivityLog() {
   }
 }
 
+// Ez helyi eseménynapló a felhasználónak, nem teljes szerveres auditnapló.
 function renderActivityLog() {
   const list = $("activityLogEntries");
   if (!list) return;
@@ -298,6 +310,7 @@ function downsampleReadings(readings, maxPoints = 480) {
 // ---------------------- Grafikonok és kurzorkövetés ------------------------
 
 // SVG-ből rajzoljuk a grafikonokat, így nem kell külön grafikonkönyvtár.
+// Az SVG-t adatokból építjük. Új szűréshez újrarajzolás kell, nem elég a felirat cseréje.
 function renderThingSpeakCharts(feeds) {
   chartFeedsForResize = feeds;
   const svgNS = "http://www.w3.org/2000/svg";
@@ -306,6 +319,7 @@ function renderThingSpeakCharts(feeds) {
     const field = "field" + chart.dataset.fieldChart;
     const readings = feeds
       .map((feed) => ({
+        // A hiányzó mezőt NaN-ként kezeljük, hogy ne jelenjen meg hamis nullás mérésként.
         value: feed[field] === null || feed[field] === "" ? Number.NaN : Number(feed[field]),
         timestamp: feed.created_at
       }))
@@ -364,6 +378,7 @@ function renderThingSpeakCharts(feeds) {
     let min = stateLabels ? 0 : values.length ? Math.min(...values) : 0;
     let max = stateLabels ? 1 : values.length ? Math.max(...values) : 1;
     if (min === max) {
+      // Állandó értéknél kis tartományt adunk a tengelynek, különben a vonal számolása osztana nullával.
       const padding = Math.abs(min) * 0.1 || 1;
       min -= padding;
       max += padding;
@@ -409,6 +424,7 @@ function renderThingSpeakCharts(feeds) {
     };
 
     for (let index = 0; index < xTickCount; index += 1) {
+      // Az időtengely feliratait egyenletesen osztjuk el a teljes adatsoron.
       const ratio = xTickCount === 1 ? 0.5 : index / (xTickCount - 1);
       const x = plot.left + ratio * (plot.right - plot.left);
       const gridLine = document.createElementNS(svgNS, "line");
@@ -426,6 +442,7 @@ function renderThingSpeakCharts(feeds) {
     }
 
     if (plottedReadings.length) {
+      // A szenzorértékeket a rajzterület koordinátáira képezzük le.
       const coordinates = plottedReadings.map((reading) => ({
         x: readings.length === 1 ? (plot.left + plot.right) / 2 : plot.left + (reading.sourceIndex / (readings.length - 1)) * (plot.right - plot.left),
         y: plot.bottom - ((reading.value - min) / range) * (plot.bottom - plot.top)
@@ -516,6 +533,7 @@ function renderThingSpeakCharts(feeds) {
 
         const coordinate = coordinates[nearestIndex];
         const reading = plottedReadings[nearestIndex];
+        // A buborékot a grafikon széleinél a másik oldalra tesszük, és a rajzterületen belül tartjuk.
         const tooltipX = coordinate.x + tooltipWidth + 14 > plot.right
           ? coordinate.x - tooltipWidth - 14
           : coordinate.x + 14;
@@ -560,6 +578,7 @@ window.addEventListener("resize", () => {
 // ----------------------- Chat és szenzoradatok -----------------------------
 
 // A chat válaszát szövegként jelenítjük meg, nem HTML-kódként.
+// A textContent miatt az üzenetben kapott HTML nem fut le.
 function addChatMessage(sender, message, type, save = true) {
   const item = document.createElement("article");
   item.className = `chat-message ${type}-message`;
@@ -718,6 +737,7 @@ async function loadLatestReadings({ quiet = false } = {}) {
 }
 
 // Betöltjük a kiválasztott időszak adatait, majd újrarajzoljuk a grafikonokat.
+// A szűrőt az API-kéréshez adjuk, hogy tényleg a kért adatokból készüljön a grafikon.
 async function loadChartHistory({ quiet = false } = {}) {
   const button = $("refreshChartsBtn");
   const status = $("chartStatus");
@@ -786,6 +806,7 @@ function weatherNumber(value, digits = 0) {
 
 async function loadCurrentWeather(latitude, longitude, placeName) {
   setWeatherStatus("Időjárási adatok lekérése…");
+  // A koordináták alapján kért aktuális adatokat az időjárási szolgáltatás saját helyi idejével kapjuk.
   const params = new URLSearchParams({
     latitude: String(latitude),
     longitude: String(longitude),
@@ -1036,6 +1057,7 @@ function sensorContext() {
   };
 }
 
+// Küldés közben a tiltott gomb segít elkerülni a kérdés véletlen ismételt elküldését.
 async function submitChat(event) {
   event.preventDefault();
   const input = $("chatInput");
@@ -1122,6 +1144,7 @@ function setupNavigation() {
   }));
 }
 
+// Bemutatókapcsolók: nem küldenek vezérlést a mikrovezérlőnek.
 function setupDemoSwitches() {
   // Ezek csak látványkapcsolók, nem küldenek parancsot az ESP32-nek.
   ["fanDemoSwitch", "ledDemoSwitch", "roofDemoSwitch"].forEach((id) => {
@@ -1217,6 +1240,7 @@ function initializeDashboard() {
   state.chartRefreshTimer = window.setInterval(() => loadChartHistory({ quiet: true }), CHART_REFRESH_INTERVAL_MS);
 }
 
+// A sorok sorrendjét és láthatóságát szerkesztjük; a méréseket nem töröljük.
 function setupSummaryEditor() {
   // A felső ThingSpeak-kártya sorainak sorrendjét és láthatóságát kezeljük.
   const toggle = $("summarySettingsToggle");
@@ -1387,6 +1411,7 @@ function setupSummaryEditor() {
   renderEditorList();
 }
 
+// A kártyák elrendezése helyi beállítás, másik böngészőben eltérhet.
 function setupMetricEditor() {
   // Ugyanígy lehet rendezni, elrejteni és visszatenni a környezeti mérőkártyákat.
   const grid = document.querySelector(".greenhouse-grid");
@@ -1537,6 +1562,7 @@ function setupMetricEditor() {
   renderList();
 }
 
+// A grafikonhelyekhez mezőket rendelünk; a csempe törlése csak az elrendezést módosítja.
 function setupChartEditor() {
   // A kiválasztott grafikonmezőket elmentjük, az üres helyekről pedig új mező adható hozzá.
   const grid = $("chartGrid");
@@ -1645,6 +1671,7 @@ function setupChartEditor() {
   renderSlots();
 }
 
+// Görgetés előtt meg kell jelennie az oldalnak, hogy a végleges pozíciókat mérhessük.
 function showDashboard() {
   $("loginScreen").hidden = true;
   $("appShell").hidden = false;

@@ -1,3 +1,10 @@
+/*
+A grafikonok és kártyák szerveroldali adatvégpontja.
+A böngésző szűrési paramétereit ellenőrizzük az adatlekérés előtt.
+A dátummező nem tartalmaz időzónát, ezért a szerver alakítja
+a választott helyi időt UTC-re, a számítógép helyétől függetlenül.
+*/
+// ThingSpeak API-végpont: belépés után friss vagy történeti méréseket ad vissza a megadott időszakból.
 import { fetchThingSpeakFeeds, ThingSpeakError } from "./lib/thingspeak.js";
 import { requireAuthentication } from "./lib/auth.js";
 
@@ -29,6 +36,7 @@ function parseBudapestDateTime(value) {
     || calendarCheck.getUTCDate() !== day) return null;
 
   let timestamp = localAsUtc;
+  // A helyi idő UTC-eltolása évszaktól függhet, ezért újraszámoljuk, amíg egyeznek az órarészek.
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const parts = Object.fromEntries(BUDAPEST_DATE_TIME_FORMATTER.formatToParts(new Date(timestamp))
       .filter(({ type }) => type !== "literal")
@@ -45,6 +53,7 @@ function parseBudapestDateTime(value) {
   const resolved = Object.fromEntries(BUDAPEST_DATE_TIME_FORMATTER.formatToParts(new Date(timestamp))
     .filter(({ type }) => type !== "literal")
     .map(({ type, value: part }) => [type, part]));
+  // Az óraátálláskor nem létező helyi időt is kiszűri ez a visszaellenőrzés.
   if (Number(resolved.year) !== year
     || Number(resolved.month) !== month
     || Number(resolved.day) !== day
