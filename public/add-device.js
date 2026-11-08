@@ -1,11 +1,6 @@
-/*
-Az eszközkezelő űrlapja és kártyái.
-A listát a böngészőben mentjük, és ebből rajzoljuk ki az eszközöket.
-A felvétel nyilvántartási művelet: nem párosít automatikusan
-hardvert, és nem módosítja az ESP32 programját.
-Szerkesztés után a tárolt listát és a látható kártyákat is frissítjük.
-*/
-// Az eszközkezelő felülete: eszközöket vesz fel, szerkeszt és töröl a böngésző helyi tárhelyén.
+// Device manager page: add, edit and delete devices in the local storage of the browser.
+// The list is saved in the browser and the cards are drawn from it.
+// Adding a device is only a record. It does not pair any hardware or change the ESP32 program.
 const deviceForm = document.getElementById("deviceForm");
 const deviceList = document.getElementById("deviceList");
 const themeToggle = document.getElementById("themeToggle");
@@ -52,11 +47,11 @@ const CURRENT_GREENHOUSE_DEVICES = [
   source: "ESP32 · ThingSpeak"
 }));
 
-// ----------------------- Mentett eszközök adatai ---------------------------
+// ---------- Saved devices ----------
 
-// Az alaplista egyszeri feltöltése miatt a törölt kártya nem jelenik meg újra minden indításkor.
+// The default list is added only once, so a deleted card does not come back at every start.
 function loadDevices() {
-  // Első megnyitáskor betesszük az ESP32 ismert eszközeit, utána a felhasználó listáját töltjük vissza.
+  // On the first visit add the known ESP32 devices, afterwards load the user's list.
   try {
     const savedDevices = JSON.parse(localStorage.getItem("smartHomeDevices") || "[]");
     const devices = Array.isArray(savedDevices)
@@ -81,9 +76,9 @@ function loadDevices() {
 
 let devices = loadDevices();
 
-// Ez helyi mentés; másik telefonra vagy számítógépre nem szinkronizál.
+// This is local storage only, it is not synced to another phone or computer.
 function saveDevices() {
-  // Ez az eszközlista böngészőnként külön tárolódik, nem a ThingSpeak-csatornába kerül.
+  // The list is stored per browser, not in the ThingSpeak channel.
   localStorage.setItem("smartHomeDevices", JSON.stringify(devices));
 }
 
@@ -99,14 +94,14 @@ function formatDate(dateString) {
 }
 
 function logDeviceActivity(message) {
-  // Ugyanabba a helyi eseménynaplóba írunk, amit a főoldal is megjelenít.
+  // Write to the same local activity log that the main page shows.
   try {
     const savedEntries = JSON.parse(localStorage.getItem("greenhouse-activity-log") || "[]");
     const entries = Array.isArray(savedEntries) ? savedEntries : [];
     entries.unshift({ at: new Date().toISOString(), message, level: "success" });
     localStorage.setItem("greenhouse-activity-log", JSON.stringify(entries.slice(0, 30)));
   } catch {
-    // Az eszköz mentése akkor is sikeres marad, ha a böngésző nem enged naplózni.
+    // Saving the device still works if the browser does not allow logging.
   }
 }
 
@@ -119,11 +114,11 @@ function addDetail(container, label, value) {
   container.appendChild(line);
 }
 
-// -------------------------- Eszközlista megjelenítése ----------------------
+// ---------- Showing the device list ----------
 
-// Mentés vagy törlés után a tárolt listából újraépítjük a kártyákat.
+// After saving or deleting, rebuild the cards from the stored list.
 function renderDevices() {
-  // A listaelemeket DOM-elemekből építjük fel; a felhasználói szöveg nem HTML-kódként fut le.
+  // Build the list items from DOM elements, so user text never runs as HTML.
   deviceList.replaceChildren();
   const count = document.getElementById("deviceCount");
   if (count) count.textContent = `${devices.length} eszköz`;
@@ -149,7 +144,7 @@ function renderDevices() {
     actions.className = "device-actions";
     title.textContent = device.name || "Névtelen eszköz";
 
-    // Az elmentett adatokat egyszerű szövegként tesszük az oldalra.
+    // Put the saved data on the page as plain text.
     addDetail(details, "Típus", DEVICE_TYPE_LABELS[device.type] || device.type || "Nincs megadva");
     addDetail(details, "ThingSpeak-mező", device.field || device.thingSpeakField || "Nincs hozzárendelve");
     addDetail(details, "Elhelyezés", device.location || "Nincs megadva");
@@ -178,18 +173,18 @@ function renderDevices() {
 }
 
 function resetForm() {
-  // Sikeres mentés vagy megszakítás után visszaállítjuk az űrlapot új eszköz felvételéhez.
+  // After saving or cancelling, reset the form for a new device.
   deviceForm.reset();
   editIndexInput.value = "";
   saveDeviceBtn.textContent = "Eszköz mentése";
   deviceMessage.textContent = "";
 }
 
-// ----------------------- Eszköz felvétele, szerkesztése, törlése ------------
+// ---------- Add, edit and delete a device ----------
 
-// Visszatöltjük az adatokat az űrlapba, így ugyanaz az űrlap használható szerkesztésre is.
+// Fill the form with the saved data, so the same form can be used for editing.
 function editDevice(index) {
-  // A kiválasztott eszköz adatait visszatöltjük az űrlap mezőibe.
+  // Load the data of the selected device into the form fields.
   const device = devices[index];
   if (!device) return;
 
@@ -204,7 +199,7 @@ function editDevice(index) {
 }
 
 function deleteDevice(index) {
-  // Törlés előtt megerősítést kérünk, mert ez az eszköz kikerül a böngészőben mentett listából.
+  // Ask for confirmation before deleting, because the device is removed from the saved list.
   if (!devices[index]) return;
 
   const confirmed = window.confirm("Biztosan törlöd ezt az eszközt?");
@@ -247,7 +242,7 @@ deviceForm.addEventListener("submit", (event) => {
     ...(existingDevice?.source ? { source: existingDevice.source } : {})
   };
 
-  // Szerkesztéskor a meglévő rekord helyére írunk, új eszköznél pedig a lista végére tesszük.
+  // When editing, replace the existing record. A new device goes to the end of the list.
   if (isNewDevice) {
     devices.push(deviceData);
   } else {
@@ -263,10 +258,10 @@ deviceForm.addEventListener("submit", (event) => {
 
 cancelEditBtn.addEventListener("click", resetForm);
 
-// ------------------------- Téma és oldalindítás ----------------------------
+// ---------- Theme and page start ----------
 
 function setupTheme() {
-  // A főoldallal közös beállítást használjuk, így az oldalváltás nem vált témát.
+  // Use the same theme setting as the main page, so changing page keeps the theme.
   const storedTheme = localStorage.getItem("greenhouse-theme");
   if (storedTheme === "dark") document.documentElement.classList.add("dark");
   themeToggle.setAttribute("aria-pressed", String(document.documentElement.classList.contains("dark")));
@@ -318,7 +313,7 @@ function setupLogout() {
 
 async function initializeDevicePage() {
   try {
-    // A felületet csak a szerver által megerősített bejelentkezés után mutatjuk meg.
+    // Show the page only after the server has confirmed the login.
     const response = await fetch("/api/auth", { cache: "no-store" });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.authenticated) {
