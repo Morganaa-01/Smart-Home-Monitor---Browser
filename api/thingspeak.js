@@ -59,6 +59,8 @@ function parseBudapestDateTime(value) {
   return new Date(timestamp);
 }
 
+// Same rule as in the chat: check the login first, then validate the query, and fetch only after that.
+// So a wrong input never reaches ThingSpeak.
 export default async function handler(req, res) {
   // Only a logged-in user can read the measurement history.
   if (!requireAuthentication(req, res)) return;
