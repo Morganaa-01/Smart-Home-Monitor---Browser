@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { runGreenhouseTool } from "../api/lib/greenhouse-tools.js";
 import { fetchThingSpeakFeeds } from "../api/lib/thingspeak.js";
 
-// Helyettesített adatforrással tesztelünk: nem kell API-kulcs, és nem módosítunk valódi mérést.
+// The data source is faked, so no API key is needed and no real measurement is changed.
 const originalFetch = globalThis.fetch;
 after(() => { globalThis.fetch = originalFetch; });
 const history = (field = "field5", start = "2026-11-01", end = start) =>

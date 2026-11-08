@@ -1,17 +1,13 @@
-/*
-A főoldal böngészőben futó működése.
-Az API méréseiből frissülnek a kártyák, grafikonok és a chat környezeti adatai.
-A localStorage őrzi a helyi beállításokat és a beszélgetést:
-ez böngészőhöz és webcímhez kötődik, nem közös szerveres adatbázis.
-A fájl végén indul a belépés ellenőrzése. A felület elrejtése mellett
-az API-k külön is ellenőrzik a jogosultságot.
-*/
-// A főoldal működését vezérli: adatokat és grafikonokat tölt be, kezeli az időjárást, a témát és az AI-chatet.
-// Ennyi időnként kér új méréseket az irányítópult a ThingSpeaktől.
+// Main page logic: loads the measurements and the charts, handles the weather, the theme and the AI chat.
+// The cards, charts and chat data come from the API. localStorage keeps the local settings and the
+// conversation per browser and address, there is no shared server database.
+// The login check starts at the end of the file. Hiding the page is not security by itself,
+// the API routes check the permission too.
+// How often the dashboard asks ThingSpeak for new measurements.
 const REFRESH_INTERVAL_MS = 30_000;
 const CHART_REFRESH_INTERVAL_MS = 5 * 60_000;
 
-// Itt tároljuk a legutóbbi adatokat, hogy a felület és a chat ugyanazt használja.
+// The latest data is kept here, so the page and the chat use the same values.
 const state = {
   readings: null,
   lastEntry: null,
@@ -29,7 +25,7 @@ const CHAT_HISTORY_LIMIT = 60;
 const SENSOR_CACHE_KEY = "greenhouse-last-reading";
 const CHAT_GREETING_TEXT = "Szia! A legutóbb betöltött növényházi mérések alapján tudok segíteni. A beszélgetést a gpt-6-luna modell működteti.";
 
-// A beszélgetést csak ebben a böngészőben őrizzük meg, és korlátozzuk a méretét.
+// The conversation is kept in this browser only, and its size is limited.
 function getSavedChatHistory() {
   try {
     const messages = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || "[]");
@@ -45,7 +41,7 @@ function getSavedChatHistory() {
 }
 
 function saveChatHistory() {
-  // Csak a valódi felhasználói és asszisztensüzeneteket mentjük, a rendszerjelzéseket nem.
+  // Save only real user and assistant messages, not system notices.
   const messages = [...$("chatMessages").querySelectorAll(".chat-message")]
     .filter((item) => item.classList.contains("user-message") || item.classList.contains("bot-message"))
     .map((item) => ({
@@ -59,16 +55,16 @@ function saveChatHistory() {
   try {
     localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(messages));
   } catch {
-    // Ha a böngésző tiltja a helyi tárolást, a chat attól még használható marad.
+    // If storage is blocked, the chat still works.
   }
 }
 
-// Visszatöltéskor nem mentjük újra egyesével az üzeneteket, így nem lesznek ismétlődő bejegyzések.
+// Do not save the messages one by one while restoring, so there are no duplicates.
 function restoreChatHistory() {
-  // Visszatöltjük az utolsó üzeneteket; az addChatMessage hamis paramétere megakadályozza az újramentést.
+  // Restore the last messages. The false argument of addChatMessage stops it from saving again.
   const messages = getSavedChatHistory();
   messages.forEach(({ sender, text, type }, index) => {
-    // A korábban elmentett nyitóüzenetet is frissítjük, hogy a modell neve ott is látszódjon.
+    // Also update the saved welcome message, so the model name is shown there.
     const greeting = index === 0 && type === "bot" && text === "Szia! A legutóbb betöltött növényházi mérések alapján tudok segíteni."
       ? CHAT_GREETING_TEXT
       : text;
@@ -77,14 +73,14 @@ function restoreChatHistory() {
   return messages.length > 0;
 }
 
-// Az utolsó mérés gyorsítótára induláskor megjelenik, amíg a friss lekérés befejeződik.
-// A mentett érték gyorsan megjelenhet, de az eredeti mérési idő marad mellette: ettől még nem friss adat.
+// The cached last measurement is shown at start while the fresh request is running.
+// The saved value shows quickly but keeps its original time, so it is not fresh data.
 function restoreCachedReading() {
   try {
     const entry = JSON.parse(localStorage.getItem(SENSOR_CACHE_KEY) || "null");
     if (entry && typeof entry.created_at === "string") renderReadings(entry, false);
   } catch {
-    // Hibás vagy hiányzó gyorsítótár esetén a ThingSpeak lekérése tölti be az adatot.
+    // If the cache is broken or missing, the ThingSpeak request loads the data.
   }
 }
 
@@ -97,7 +93,7 @@ function getActivityLog() {
   }
 }
 
-// Ez helyi eseménynapló a felhasználónak, nem teljes szerveres auditnapló.
+// This is a local activity log for the user, not a full server audit log.
 function renderActivityLog() {
   const list = $("activityLogEntries");
   if (!list) return;
@@ -142,7 +138,7 @@ function addActivityLog(message, level = "info") {
   try {
     localStorage.setItem(ACTIVITY_LOG_KEY, JSON.stringify(entries.slice(0, ACTIVITY_LOG_LIMIT)));
   } catch {
-    // Ha a böngésző nem engedi a tárolást, a felület ettől még tovább működik.
+    // If storage is not allowed, the page keeps working.
   }
   renderActivityLog();
 }
@@ -220,9 +216,9 @@ const CHART_STORAGE_KEY = "greenhouse-chart-fields";
 const DEFAULT_CHART_FIELDS = [1, 2, 3, 4, 5, 6, 7, 8];
 const MAX_CHART_SLOTS = 8;
 
-// ------------------------------ Grafikonsegédek -----------------------------
+// ---------- Chart helpers ----------
 
-// A ThingSpeak időpontjai UTC-ben vannak, a felületen budapesti időt mutatunk.
+// ThingSpeak times are UTC, the page shows Budapest time.
 function formatBudapestTime(value) {
   if (!value) return "—";
   const date = value instanceof Date ? value : new Date(value);
@@ -259,7 +255,7 @@ function formatCompactDateTimeInput(value) {
   return match ? `${match[3]}.${match[2]}. ${match[4]}:${match[5]}` : value;
 }
 
-// A dátummező Budapest faliórája szerint dolgozik, a böngésző helyi zónájától függetlenül.
+// The date input uses Budapest wall-clock time, whatever the time zone of the browser is.
 function formatBudapestDateTimeInput(value) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Budapest",
@@ -276,13 +272,13 @@ function formatBudapestDateTimeInput(value) {
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
-// Sok mérési pontnál ritkítjuk az adatsort, de a szélső értékeket megtartjuk.
+// With many points the series is thinned, but the extreme values are kept.
 function downsampleReadings(readings, maxPoints = 480) {
   if (readings.length <= maxPoints) {
     return readings.map((reading, index) => ({ ...reading, sourceIndex: index }));
   }
 
-  // Minden csoportból az alsó és felső értéket tartjuk meg, hogy a csúcsok látszódjanak.
+  // Keep the lowest and highest value of each group, so the peaks stay visible.
   const bucketSize = Math.ceil((readings.length - 2) / ((maxPoints - 2) / 2));
   const sampled = [{ ...readings[0], sourceIndex: 0 }];
 
@@ -309,10 +305,10 @@ function downsampleReadings(readings, maxPoints = 480) {
   return sampled;
 }
 
-// ---------------------- Grafikonok és kurzorkövetés ------------------------
+// ---------- Charts and cursor tracking ----------
 
-// SVG-ből rajzoljuk a grafikonokat, így nem kell külön grafikonkönyvtár.
-// Az SVG-t adatokból építjük. Új szűréshez újrarajzolás kell, nem elég a felirat cseréje.
+// The charts are drawn as SVG, so no chart library is needed.
+// The SVG is built from the data. A new filter needs a redraw, changing the label is not enough.
 function renderThingSpeakCharts(feeds) {
   chartFeedsForResize = feeds;
   const svgNS = "http://www.w3.org/2000/svg";
@@ -321,7 +317,7 @@ function renderThingSpeakCharts(feeds) {
     const field = "field" + chart.dataset.fieldChart;
     const readings = feeds
       .map((feed) => ({
-        // A hiányzó mezőt NaN-ként kezeljük, hogy ne jelenjen meg hamis nullás mérésként.
+        // A missing field is NaN, so it is not shown as a fake zero measurement.
         value: feed[field] === null || feed[field] === "" ? Number.NaN : Number(feed[field]),
         timestamp: feed.created_at
       }))
@@ -338,7 +334,7 @@ function renderThingSpeakCharts(feeds) {
       return unit ? `${formattedValue} ${unit}` : formattedValue;
     };
     const svg = document.createElementNS(svgNS, "svg");
-    // A viewBox a kártya szélességéhez igazodik, így mobilon sem zsugorodnak össze a feliratok.
+    // The viewBox follows the card width, so the labels do not shrink on mobile.
     svg.setAttribute("viewBox", `0 0 ${chartWidth} 270`);
     svg.setAttribute("preserveAspectRatio", "none");
     svg.setAttribute("role", "img");
@@ -380,7 +376,7 @@ function renderThingSpeakCharts(feeds) {
     let min = stateLabels ? 0 : values.length ? Math.min(...values) : 0;
     let max = stateLabels ? 1 : values.length ? Math.max(...values) : 1;
     if (min === max) {
-      // Állandó értéknél kis tartományt adunk a tengelynek, különben a vonal számolása osztana nullával.
+      // For a constant value give the axis a small range, otherwise the line calculation divides by zero.
       const padding = Math.abs(min) * 0.1 || 1;
       min -= padding;
       max += padding;
@@ -426,7 +422,7 @@ function renderThingSpeakCharts(feeds) {
     };
 
     for (let index = 0; index < xTickCount; index += 1) {
-      // Az időtengely feliratait egyenletesen osztjuk el a teljes adatsoron.
+      // Spread the time labels evenly over the whole series.
       const ratio = xTickCount === 1 ? 0.5 : index / (xTickCount - 1);
       const x = plot.left + ratio * (plot.right - plot.left);
       const gridLine = document.createElementNS(svgNS, "line");
@@ -444,7 +440,7 @@ function renderThingSpeakCharts(feeds) {
     }
 
     if (plottedReadings.length) {
-      // A szenzorértékeket a rajzterület koordinátáira képezzük le.
+      // Map the sensor values to the coordinates of the drawing area.
       const coordinates = plottedReadings.map((reading) => ({
         x: readings.length === 1 ? (plot.left + plot.right) / 2 : plot.left + (reading.sourceIndex / (readings.length - 1)) * (plot.right - plot.left),
         y: plot.bottom - ((reading.value - min) / range) * (plot.bottom - plot.top)
@@ -524,7 +520,7 @@ function renderThingSpeakCharts(feeds) {
         let nearestIndex = 0;
         let nearestDistance = Number.POSITIVE_INFINITY;
 
-        // Megkeressük a kurzorhoz legközelebbi mérést, és megjelenítjük az értékét.
+        // Find the measurement nearest to the cursor and show its value.
         coordinates.forEach((coordinate, index) => {
           const distance = Math.abs(coordinate.x - pointerX);
           if (distance < nearestDistance) {
@@ -535,7 +531,7 @@ function renderThingSpeakCharts(feeds) {
 
         const coordinate = coordinates[nearestIndex];
         const reading = plottedReadings[nearestIndex];
-        // A buborékot a grafikon széleinél a másik oldalra tesszük, és a rajzterületen belül tartjuk.
+        // Near the chart edges the tooltip goes to the other side and stays inside the drawing area.
         const tooltipX = coordinate.x + tooltipWidth + 14 > plot.right
           ? coordinate.x - tooltipWidth - 14
           : coordinate.x + 14;
@@ -570,17 +566,17 @@ function renderThingSpeakCharts(feeds) {
   });
 }
 
-// Átméretezéskor újrarajzoljuk a grafikont, hogy elforgatásnál is olvasható maradjon.
+// Redraw on resize, so the chart stays readable when the phone is rotated.
 window.addEventListener("resize", () => {
   if (!chartFeedsForResize) return;
   window.clearTimeout(chartResizeTimer);
   chartResizeTimer = window.setTimeout(() => renderThingSpeakCharts(chartFeedsForResize), 150);
 });
 
-// ----------------------- Chat és szenzoradatok -----------------------------
+// ---------- Chat and sensor data ----------
 
-// A chat válaszát szövegként jelenítjük meg, nem HTML-kódként.
-// A textContent miatt az üzenetben kapott HTML nem fut le.
+// The chat reply is shown as text, not as HTML.
+// Because of textContent, HTML in a message does not run.
 function addChatMessage(sender, message, type, save = true) {
   const item = document.createElement("article");
   item.className = `chat-message ${type}-message`;
@@ -591,7 +587,7 @@ function addChatMessage(sender, message, type, save = true) {
   item.append(heading, body);
   $("chatMessages").append(item);
   $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
-  // A visszatöltött üzeneteknél kikapcsoljuk a mentést, új üzenetnél viszont frissítjük az előzményt.
+  // Saving is off for restored messages, a new message updates the history.
   if (save && ["user", "bot"].includes(type)) saveChatHistory();
   return body;
 }
@@ -610,7 +606,7 @@ function cleanAssistantReply(message) {
     .trim();
 }
 
-// A ThingSpeak mezői szövegként érkeznek; a hiányzó értékeket nullként kezeljük.
+// ThingSpeak fields arrive as text. Missing values are handled as null.
 function numericField(value) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
@@ -643,9 +639,9 @@ function syncDemoSwitch(id, isOn) {
   if (!control.dataset.previewChanged) control.checked = isOn === true;
 }
 
-// ----------------------- Irányítópult mérései ------------------------------
+// ---------- Dashboard measurements ----------
 
-// Frissítjük a mérési kártyákat és a kapcsolók állapotát egy ThingSpeak rekordból.
+// Update the measurement cards and the switches from one ThingSpeak record.
 function renderReadings(entry, saveToCache = true) {
   const fields = {
     temperature: numericField(entry.field1),
@@ -664,10 +660,10 @@ function renderReadings(entry, saveToCache = true) {
   $("emailPdfBtn").disabled = false;
   if (saveToCache) {
     try {
-      // Így hálózati hiba esetén is marad egy korábbi, megjeleníthető mérés.
+      // So an earlier measurement can still be shown after a network error.
       localStorage.setItem(SENSOR_CACHE_KEY, JSON.stringify(entry));
     } catch {
-      // A friss mérés megjelenítését nem akadályozhatja meg a megtelt tárhely.
+      // A full storage must not stop the fresh measurement from showing.
     }
   }
 
@@ -702,7 +698,7 @@ function renderReadings(entry, saveToCache = true) {
   const ageSeconds = date && !Number.isNaN(date.valueOf())
     ? Math.max(0, Math.floor((Date.now() - date.valueOf()) / 1000))
     : null;
-  // Két percnél régebbi mérésnél a felület elavult adatot jelez.
+  // A measurement older than two minutes is marked as old data.
   const isStale = ageSeconds !== null && ageSeconds > 120;
   $("lastUpdated").textContent = date && !Number.isNaN(date.valueOf())
     ? `Utoljára frissítve: ${date.toLocaleString("hu-HU")}`
@@ -711,7 +707,7 @@ function renderReadings(entry, saveToCache = true) {
   $("connectionStatus").className = `connection-pill ${isStale ? "stale" : "connected"}`;
 }
 
-// Betöltünk néhány friss rekordot a kártyákhoz és az AI-chat adatcsomagjához.
+// Load a few recent records for the cards and for the data package of the AI chat.
 async function loadLatestReadings({ quiet = false } = {}) {
   const button = $("refreshDataBtn");
   if (button) button.disabled = true;
@@ -740,8 +736,8 @@ async function loadLatestReadings({ quiet = false } = {}) {
   }
 }
 
-// Betöltjük a kiválasztott időszak adatait, majd újrarajzoljuk a grafikonokat.
-// A szűrőt az API-kéréshez adjuk, hogy tényleg a kért adatokból készüljön a grafikon.
+// Load the data of the selected period, then redraw the charts.
+// The filter goes into the API request, so the chart really uses the requested data.
 async function loadChartHistory({ quiet = false } = {}) {
   const button = $("refreshChartsBtn");
   const status = $("chartStatus");
@@ -795,9 +791,9 @@ async function loadChartHistory({ quiet = false } = {}) {
   }
 }
 
-// ------------------------------ Időjárás -----------------------------------
+// ---------- Weather ----------
 
-// A településkereséshez és az aktuális időjáráshoz az Open-Meteo szolgáltatását használjuk.
+// City search and the current weather use the Open-Meteo service.
 function setWeatherStatus(message, isError = false) {
   const status = $("weatherStatus");
   status.textContent = message;
@@ -813,7 +809,7 @@ function weatherNumber(value, digits = 0) {
 
 async function loadCurrentWeather(latitude, longitude, placeName) {
   setWeatherStatus("Időjárási adatok lekérése…");
-  // A koordináták alapján kért aktuális adatokat az időjárási szolgáltatás saját helyi idejével kapjuk.
+  // The weather service gives the current data in its own local time for the coordinates.
   const params = new URLSearchParams({
     latitude: String(latitude),
     longitude: String(longitude),
@@ -867,8 +863,8 @@ async function searchWeatherByCity(event) {
   }
 }
 
-// Ezek az állapotok kezelik a gépelés közbeni javaslatlistát és a billentyűzetes választást.
-// Gépelés után röviden várunk a javaslatok lekérésével, így nem küldünk kérést minden billentyűre.
+// These variables handle the suggestion list while typing and the keyboard selection.
+// After typing we wait a little before asking for suggestions, so there is no request for every key.
 let weatherSuggestionTimer;
 let weatherSuggestionRequest = 0;
 let weatherSelectedPlace = null;
@@ -952,7 +948,7 @@ function handleWeatherLocationInput(event) {
   weatherSelectedPlace = null;
   weatherSelectedQuery = "";
   clearTimeout(weatherSuggestionTimer);
-  // A régebbi kérések eredményét eldobjuk, ha közben újabb keresés indult.
+  // Drop the result of older requests if a newer search has started.
   weatherSuggestionRequest += 1;
   closeWeatherSuggestions();
   if (query.length < 2) return;
@@ -993,7 +989,7 @@ async function findNearbyPlaceName(latitude, longitude) {
   return address.city || address.town || address.village || address.municipality || address.hamlet || address.suburb || address.county || data.name || null;
 }
 
-// A helyadatok lekérését csak a gomb megnyomása után indítjuk el.
+// The location is requested only after the button is pressed.
 function useCurrentLocation() {
   const button = $("useMyLocationBtn");
   if (!navigator.geolocation) {
@@ -1031,7 +1027,7 @@ function useCurrentLocation() {
 }
 
 function setupWeather() {
-  // A keresőmező, a billentyűzet és a helymeghatározó gomb eseményeit kapcsoljuk össze.
+  // Connect the events of the search field, the keyboard and the location button.
   $("weatherForm").addEventListener("submit", searchWeatherByCity);
   $("weatherLocationInput").addEventListener("input", handleWeatherLocationInput);
   $("weatherLocationInput").addEventListener("keydown", handleWeatherLocationKeydown);
@@ -1039,9 +1035,9 @@ function setupWeather() {
   $("useMyLocationBtn").addEventListener("click", useCurrentLocation);
 }
 
-// ------------------------------- AI-chat -----------------------------------
+// ---------- AI chat ----------
 
-// Összeállítjuk a szenzoradatokat, amelyeket a felhasználó kérdésével küldünk el.
+// Collect the sensor data that is sent together with the question of the user.
 function sensorContext() {
   if (!state.readings) return { status: "Még nincs betöltött mérési adat." };
   const measuredAt = state.lastEntry?.created_at ? new Date(state.lastEntry.created_at) : null;
@@ -1064,7 +1060,7 @@ function sensorContext() {
   };
 }
 
-// Küldés közben a tiltott gomb segít elkerülni a kérdés véletlen ismételt elküldését.
+// While sending, the disabled button stops the question from being sent twice by accident.
 async function submitChat(event) {
   event.preventDefault();
   const input = $("chatInput");
@@ -1072,7 +1068,7 @@ async function submitChat(event) {
   if (!message) return;
 
   addChatMessage("Te", message, "user");
-  // A legutóbbi, most elküldött kérdést kihagyjuk; azt a szerver külön kapja meg.
+  // Leave out the question that was just sent. The server gets it separately.
   const conversation = [...$("chatMessages").querySelectorAll(".chat-message")]
     .filter((item) => item.classList.contains("user-message") || item.classList.contains("bot-message"))
     .map((item) => ({
@@ -1113,10 +1109,10 @@ async function submitChat(event) {
   }
 }
 
-// ------------------------- Felület indítása --------------------------------
+// ---------- Starting the page ----------
 
 function setupTheme() {
-  // A választott témát a böngésző megjegyzi, hogy oldalváltás után se álljon vissza.
+  // The browser remembers the chosen theme, so it does not reset after changing page.
   const savedTheme = localStorage.getItem("greenhouse-theme");
   const themeToggle = $("themeToggle");
   if (savedTheme === "dark") document.documentElement.classList.add("dark");
@@ -1151,9 +1147,9 @@ function setupNavigation() {
   }));
 }
 
-// Bemutatókapcsolók: nem küldenek vezérlést a mikrovezérlőnek.
+// Demo switches: they do not send any control to the microcontroller.
 function setupDemoSwitches() {
-  // Ezek csak látványkapcsolók, nem küldenek parancsot az ESP32-nek.
+  // These are only visual switches, they send no command to the ESP32.
   ["fanDemoSwitch", "ledDemoSwitch", "roofDemoSwitch"].forEach((id) => {
     $(id).addEventListener("change", (event) => {
       event.currentTarget.dataset.previewChanged = "true";
@@ -1217,7 +1213,7 @@ function setupChartControls() {
   $("refreshChartsBtn").addEventListener("click", () => loadChartHistory());
 }
 
-// Beállítjuk a felület gombjait, majd elindítjuk az adatok frissítését.
+// Set up the buttons of the page, then start refreshing the data.
 function initializeDashboard() {
   setupActivityLog();
   addActivityLog("A felügyeleti felület megnyílt.");
@@ -1271,12 +1267,12 @@ function initializeDashboard() {
     loadChartHistory({ quiet: true });
   });
   $("chatForm").addEventListener("submit", submitChat);
-  // Előbb visszaállítjuk a korábbi beszélgetést, így csak üres chatnél jelenik meg az üdvözlés.
+  // Restore the earlier conversation first, so the greeting shows only in an empty chat.
   const hasChatHistory = restoreChatHistory();
   if (!hasChatHistory) {
     addChatMessage("Növényház okos kertésze", CHAT_GREETING_TEXT, "bot");
   }
-  // A mentett mérés rögtön látható; a következő sor friss adatot kér a ThingSpeaktől.
+  // The saved measurement is visible at once. The next line asks ThingSpeak for fresh data.
   restoreCachedReading();
   loadLatestReadings();
   loadChartHistory({ quiet: true });
@@ -1284,9 +1280,9 @@ function initializeDashboard() {
   state.chartRefreshTimer = window.setInterval(() => loadChartHistory({ quiet: true }), CHART_REFRESH_INTERVAL_MS);
 }
 
-// A sorok sorrendjét és láthatóságát szerkesztjük; a méréseket nem töröljük.
+// The order and visibility of the rows are edited, the measurements are not deleted.
 function setupSummaryEditor() {
-  // A felső ThingSpeak-kártya sorainak sorrendjét és láthatóságát kezeljük.
+  // Handle the order and visibility of the rows in the top ThingSpeak card.
   const toggle = $("summarySettingsToggle");
   const panel = $("summarySettings");
   const list = $("summaryConfigList");
@@ -1455,9 +1451,9 @@ function setupSummaryEditor() {
   renderEditorList();
 }
 
-// A kártyák elrendezése helyi beállítás, másik böngészőben eltérhet.
+// The card layout is a local setting and can be different in another browser.
 function setupMetricEditor() {
-  // Ugyanígy lehet rendezni, elrejteni és visszatenni a környezeti mérőkártyákat.
+  // The environment cards can be sorted, hidden and put back the same way.
   const grid = document.querySelector(".greenhouse-grid");
   const list = $("metricConfigList");
   const select = $("metricRowSelect");
@@ -1606,9 +1602,9 @@ function setupMetricEditor() {
   renderList();
 }
 
-// A grafikonhelyekhez mezőket rendelünk; a csempe törlése csak az elrendezést módosítja.
+// Fields are assigned to the chart slots. Deleting a tile only changes the layout.
 function setupChartEditor() {
-  // A kiválasztott grafikonmezőket elmentjük, az üres helyekről pedig új mező adható hozzá.
+  // Save the selected chart fields. An empty slot can get a new field.
   const grid = $("chartGrid");
   if (!grid) return;
 
@@ -1715,13 +1711,13 @@ function setupChartEditor() {
   renderSlots();
 }
 
-// Görgetés előtt meg kell jelennie az oldalnak, hogy a végleges pozíciókat mérhessük.
+// The page must be visible before scrolling, so the final positions can be measured.
 function showDashboard() {
   $("loginScreen").hidden = true;
   $("appShell").hidden = false;
   initializeDashboard();
 
-  // A főoldal a bejelentkezés után válik láthatóvá, ezért a célpontra ezután görgetünk.
+  // The main page becomes visible after login, so we scroll to the target after that.
   const targetId = window.location.hash.slice(1);
   if (!targetId) return;
 
