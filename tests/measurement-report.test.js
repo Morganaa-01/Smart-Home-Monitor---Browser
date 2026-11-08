@@ -6,7 +6,7 @@ import vm from "node:vm";
 // Report building can be tested without a browser or real sensor requests.
 const context = vm.createContext({ window: {}, Intl, Date, TextEncoder, Uint8Array });
 vm.runInContext(readFileSync(new URL("../public/measurement-report.js", import.meta.url), "utf8"), context);
-const { buildReport, buildCharts, createPdf, fileName } = context.window.GreenhouseReport;
+const { buildReport, createPdf, fileName } = context.window.GreenhouseReport;
 
 test("report contains all eight readings with units and recorded device states", () => {
   const report = buildReport({ created_at: "2026-11-01T11:00:00Z", field1: "22.5", field2: "0",
@@ -58,33 +58,6 @@ test("generated PDF has one page per image and correct cross-reference offsets",
   const offsets = [...text.slice(startxref).matchAll(/^(\d{10}) 00000 n $/gm)].map((m) => Number(m[1]));
   assert.equal(offsets.length, 8);
   offsets.forEach((offset, index) => assert.ok(text.startsWith(`${index + 1} 0 obj\n`, offset)));
-});
-
-test("chart series skip missing values, sort by time and keep on/off states", () => {
-  const charts = buildCharts([
-    { created_at: "2026-11-01T11:10:00Z", field1: "23", field6: "1" },
-    { created_at: "2026-11-01T11:00:00Z", field1: "22", field6: "0" },
-    { created_at: "2026-11-01T11:20:00Z", field1: null, field6: "" },
-    { created_at: "invalid", field1: "99" }
-  ]);
-  assert.equal(charts.length, 8);
-  assert.deepEqual(Array.from(charts[0].points, (p) => p.value), [22, 23]);
-  assert.equal(charts[0].unit, "°C");
-  assert.equal(charts[5].states[1], "Bekapcsolva");
-  assert.deepEqual(Array.from(charts[5].points, (p) => p.value), [0, 1]);
-  assert.equal(charts[2].points.length, 0);
-  assert.equal(buildCharts(null).length, 8);
-});
-
-test("long history is thinned but keeps the extreme values", () => {
-  const feeds = Array.from({ length: 5000 }, (_, i) => ({
-    created_at: new Date(Date.UTC(2026, 10, 1) + i * 60_000).toISOString(),
-    field1: i === 2500 ? "80" : i === 4000 ? "-20" : "20"
-  }));
-  const { points } = buildCharts(feeds)[0];
-  assert.ok(points.length <= 700);
-  assert.ok(points.some((p) => p.value === 80));
-  assert.ok(points.some((p) => p.value === -20));
 });
 
 test("PDF file name uses the measurement day in Budapest time", () => {

@@ -1,6 +1,6 @@
 // PDF report: makes a real PDF file from the loaded measurement, without any library.
 // Each page is drawn on a canvas (so letters like ő and ű look right) and put into an A4 PDF as an image.
-// Page 1 is the measurement table, page 2 is the history charts (if they are loaded).
+// Page 1 is the measurement table. The charts of the page follow as the next pages (when a filter is set).
 // The file can be downloaded or sent by email through the share sheet of the system.
 // We work on a copy of the data, so the automatic refresh cannot change a report that is being made.
 window.GreenhouseReport = (() => {
@@ -180,166 +180,103 @@ window.GreenhouseReport = (() => {
     return canvas;
   }
 
-  // Turns the loaded history feeds into one data series per field, ready to draw.
-  function buildCharts(feeds) {
-    const list = Array.isArray(feeds) ? feeds : [];
-    return fields.map(([key, name, , unit]) => {
-      const states = Array.isArray(unit) ? unit : null;
-      const points = [];
-      for (const feed of list) {
-        const raw = feed && feed[key];
-        const value = (typeof raw === "number" || typeof raw === "string") && String(raw).trim() !== ""
-          ? Number(raw) : NaN;
-        const time = feed && feed.created_at ? Date.parse(feed.created_at) : NaN;
-        if (Number.isFinite(value) && Number.isFinite(time)) points.push({ time, value });
-      }
-      points.sort((a, b) => a.time - b.time);
-      return { name, unit: states ? "" : unit, states, points: thin(points) };
+  // Style properties that make an SVG chart look the same outside of the page.
+  const CHART_STYLE_PROPERTIES = [
+    "fill", "fill-opacity", "stroke", "stroke-width", "stroke-opacity", "stroke-dasharray", "stroke-linecap",
+    "stroke-linejoin", "opacity", "display", "visibility", "font-family", "font-size", "font-weight",
+    "text-anchor", "letter-spacing"
+  ];
+
+  // First background colour that is not transparent, looking from the element up to the page.
+  function findBackground(element) {
+    for (let node = element; node; node = node.parentElement) {
+      const color = getComputedStyle(node).backgroundColor;
+      if (color && color !== "transparent" && !/rgba\(.*,\s*0\)$/.test(color)) return color;
+    }
+    return "#ffffff";
+  }
+
+  // Draws a chart that is on the page into a canvas, with the same colours and fonts as on screen.
+  // The CSS rules are copied as inline styles, because an SVG image does not see the page's stylesheets.
+  function chartToCanvas(svg) {
+    const box = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width
+      ? svg.viewBox.baseVal
+      : svg.getBoundingClientRect();
+    const width = Math.round(box.width);
+    const height = Math.round(box.height);
+    const clone = svg.cloneNode(true);
+    const originals = [svg, ...svg.querySelectorAll("*")];
+    const copies = [clone, ...clone.querySelectorAll("*")];
+    originals.forEach((original, i) => {
+      const computed = getComputedStyle(original);
+      copies[i].setAttribute("style", CHART_STYLE_PROPERTIES.map((name) => `${name}:${computed.getPropertyValue(name)}`).join(";"));
+    });
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    clone.setAttribute("width", String(width));
+    clone.setAttribute("height", String(height));
+    const background = findBackground(svg.parentElement || svg);
+    const scale = 2;
+    const markup = new XMLSerializer().serializeToString(clone);
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = width * scale;
+        canvas.height = height * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = background;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas);
+      };
+      image.onerror = () => reject(new Error("A grafikon nem alakítható képpé."));
+      image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(markup);
     });
   }
 
-  // Keeps the lowest and highest value of each bucket so peaks and state changes stay visible.
-  function thin(points, maxPoints = 600) {
-    if (points.length <= maxPoints) return points;
-    const bucketSize = Math.ceil(points.length / (maxPoints / 2));
-    const kept = [];
-    for (let start = 0; start < points.length; start += bucketSize) {
-      const bucket = points.slice(start, start + bucketSize);
-      const low = bucket.reduce((a, b) => (b.value < a.value ? b : a));
-      const high = bucket.reduce((a, b) => (b.value > a.value ? b : a));
-      for (const point of [low, high].sort((a, b) => a.time - b.time)) {
-        if (kept.at(-1) !== point) kept.push(point);
-      }
-    }
-    return kept;
-  }
+  const CHARTS_PER_PAGE = 4;
 
-  // Draws one line chart into the given rectangle of the canvas.
-  function drawChart(ctx, chart, x, y, w, h) {
-    const font = (size, weight = "normal") => `${weight} ${size}px Arial, Helvetica, sans-serif`;
-    const number = (value, digits) => new Intl.NumberFormat("hu-HU", { maximumFractionDigits: digits }).format(value);
-    const { points, states } = chart;
-    const title = chart.unit ? `${chart.name} (${chart.unit})` : chart.name;
-    const plot = { left: x + (states ? 150 : 84), right: x + w - 14, top: y + 58, bottom: y + h - 44 };
-
-    ctx.fillStyle = "#17241b";
-    ctx.textAlign = "left";
-    ctx.font = font(24, "bold");
-    ctx.fillText(title, x, y + 26);
-    if (points.length) {
-      const latest = points.at(-1).value;
-      ctx.textAlign = "right";
-      ctx.font = font(24);
-      ctx.fillStyle = "#2c6b3c";
-      ctx.fillText(states ? states[latest] ?? "—" : number(latest, 1) + (chart.unit ? " " + chart.unit : ""), x + w, y + 26);
-    }
-
-    let min = states ? 0 : Math.min(...points.map((p) => p.value));
-    let max = states ? 1 : Math.max(...points.map((p) => p.value));
-    if (!points.length) { min = 0; max = 1; }
-    if (!states) {
-      // A flat series would collapse the axis, so give it some room.
-      const pad = max === min ? Math.max(Math.abs(max) * 0.05, 1) : (max - min) * 0.08;
-      // Measurements that were never negative (lux, humidity) should not get a negative axis.
-      const nonNegative = min >= 0;
-      min -= pad;
-      max += pad;
-      if (nonNegative && min < 0) min = 0;
-    }
-    const range = max - min;
-
-    const ticks = states ? 2 : 4;
-    ctx.font = font(19);
-    for (let i = 0; i < ticks; i += 1) {
-      const ratio = i / (ticks - 1);
-      const yy = plot.top + ratio * (plot.bottom - plot.top);
-      ctx.fillStyle = "#dfe6e1";
-      ctx.fillRect(plot.left, yy, plot.right - plot.left, 1.5);
-      ctx.fillStyle = "#45564a";
-      ctx.textAlign = "right";
-      const tick = max - ratio * range;
-      ctx.fillText(states ? states[Math.round(tick)] : number(tick, 1), plot.left - 10, yy + 7);
-    }
-
-    if (!points.length) {
-      ctx.fillStyle = "#45564a";
-      ctx.textAlign = "center";
-      ctx.fillText("Nincs mérési adat", (plot.left + plot.right) / 2, (plot.top + plot.bottom) / 2);
-      return;
-    }
-
-    const first = points[0].time;
-    const span = points.at(-1).time - first;
-    const px = (time) => (span === 0 ? (plot.left + plot.right) / 2 : plot.left + ((time - first) / span) * (plot.right - plot.left));
-    const py = (value) => plot.bottom - ((value - min) / range) * (plot.bottom - plot.top);
-
-    // Time axis: three labels, with the hour only when the period is short.
-    const showHour = span < 3 * 86_400_000;
-    const timeLabel = (time) => new Intl.DateTimeFormat("hu-HU", showHour
-      ? { timeZone: "Europe/Budapest", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }
-      : { timeZone: "Europe/Budapest", month: "short", day: "numeric" }).format(new Date(time));
-    ctx.fillStyle = "#45564a";
-    ctx.font = font(19);
-    // A narrow plot (charts with long state labels) only has room for the two end labels.
-    const labels = span === 0 ? [[0.5, "center"]]
-      : plot.right - plot.left < 380 ? [[0, "left"], [1, "right"]] : [[0, "left"], [0.5, "center"], [1, "right"]];
-    labels.forEach(([ratio, align]) => {
-      ctx.textAlign = align;
-      ctx.fillText(timeLabel(first + ratio * span), plot.left + ratio * (plot.right - plot.left), plot.bottom + 30);
-    });
-
-    const path = new Path2D();
-    points.forEach((point, i) => {
-      const xx = px(point.time);
-      const yy = py(point.value);
-      if (i === 0) {
-        path.moveTo(xx, yy);
-      } else {
-        // On/off devices change state at a moment, so they are drawn as steps.
-        if (states) path.lineTo(xx, py(points[i - 1].value));
-        path.lineTo(xx, yy);
-      }
-    });
-    ctx.strokeStyle = "#2c6b3c";
-    ctx.lineWidth = 3;
-    ctx.lineJoin = "round";
-    ctx.stroke(path);
-    ctx.fillStyle = "#2c6b3c";
-    ctx.beginPath();
-    ctx.arc(px(points.at(-1).time), py(points.at(-1).value), 5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Second A4 page: the eight history charts in two columns.
-  function drawChartsPage(charts, periodLabel) {
+  // A4 pages with the charts, one below the other. The first page also has the title and the period.
+  async function drawChartPages(svgs, periodLabel) {
     const width = 1240;
     const height = 1754;
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
     const margin = 110;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = "#2c6b3c";
-    ctx.fillRect(margin, margin, width - margin * 2, 8);
-    ctx.fillStyle = "#17241b";
-    ctx.textAlign = "left";
-    ctx.font = "bold 44px Arial, Helvetica, sans-serif";
-    ctx.fillText("Mérési előzmények", margin, margin + 70);
-    ctx.font = "26px Arial, Helvetica, sans-serif";
-    ctx.fillText(periodLabel, margin, margin + 114);
+    const gap = 24;
+    const images = [];
+    for (const svg of svgs) images.push(await chartToCanvas(svg));
 
-    const gap = 50;
-    const cellW = (width - margin * 2 - gap) / 2;
-    const cellH = 330;
-    const top = margin + 170;
-    charts.forEach((chart, i) => {
-      const column = i % 2;
-      const row = Math.floor(i / 2);
-      drawChart(ctx, chart, margin + column * (cellW + gap), top + row * (cellH + 20), cellW, cellH);
-    });
-    return canvas;
+    const pages = [];
+    for (let start = 0; start < images.length; start += CHARTS_PER_PAGE) {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = "#2c6b3c";
+      ctx.fillRect(margin, margin, width - margin * 2, 8);
+      ctx.fillStyle = "#17241b";
+      ctx.textAlign = "left";
+      let y = margin + 40;
+      if (start === 0) {
+        ctx.font = "bold 44px Arial, Helvetica, sans-serif";
+        ctx.fillText("Mérési előzmények", margin, y + 30);
+        ctx.font = "26px Arial, Helvetica, sans-serif";
+        ctx.fillText(periodLabel, margin, y + 74);
+        y += 110;
+      }
+      const cellWidth = width - margin * 2;
+      const cellHeight = (height - margin - y - gap * (CHARTS_PER_PAGE - 1)) / CHARTS_PER_PAGE;
+      images.slice(start, start + CHARTS_PER_PAGE).forEach((image) => {
+        const scale = Math.min(cellWidth / image.width, cellHeight / image.height);
+        const w = image.width * scale;
+        const h = image.height * scale;
+        ctx.drawImage(image, margin + (cellWidth - w) / 2, y, w, h);
+        y += h + gap;
+      });
+      pages.push(canvas);
+    }
+    return pages;
   }
 
   function base64ToBytes(base64) {
@@ -354,13 +291,12 @@ window.GreenhouseReport = (() => {
     return { jpeg, width: canvas.width, height: canvas.height };
   }
 
-  // Built synchronously so sharing still starts within the permission granted by the button click.
-  // options.feeds and options.periodLabel add a second page with the history charts.
-  function createFile(entry, options = {}) {
+  // options.charts (SVG elements of the page) and options.periodLabel add the history charts after page 1.
+  async function createFile(entry, options = {}) {
     const report = buildReport({ ...entry });
     const pages = [toPage(drawReport(report))];
-    if (Array.isArray(options.feeds) && options.feeds.length) {
-      pages.push(toPage(drawChartsPage(buildCharts(options.feeds), options.periodLabel || "")));
+    if (Array.isArray(options.charts) && options.charts.length) {
+      for (const canvas of await drawChartPages(options.charts, options.periodLabel || "")) pages.push(toPage(canvas));
     }
     return new File([createPdf(pages)], fileName(entry), { type: "application/pdf" });
   }
@@ -376,8 +312,8 @@ window.GreenhouseReport = (() => {
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
-  function download(entry, options) {
-    const file = createFile(entry, options);
+  async function download(entry, options) {
+    const file = await createFile(entry, options);
     downloadFile(file);
     return file.name;
   }
@@ -389,7 +325,7 @@ window.GreenhouseReport = (() => {
   a mailto: link cannot carry attachments, so there the file has to be attached by hand.
   */
   async function sendByEmail(entry, options) {
-    const file = createFile(entry, options);
+    const file = await createFile(entry, options);
     const message = "Csatolva küldöm az Okos Növényház aktuális mérési jelentését.";
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
@@ -408,5 +344,5 @@ window.GreenhouseReport = (() => {
     return { method: "mailto", fileName: file.name };
   }
 
-  return { buildReport, buildCharts, createPdf, fileName, download, sendByEmail };
+  return { buildReport, createPdf, fileName, download, sendByEmail };
 })();

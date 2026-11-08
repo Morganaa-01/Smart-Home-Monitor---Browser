@@ -1048,7 +1048,8 @@ button:disabled,
 }
 
 .chart-toolbar .chart-filter-toggle,
-.chart-toolbar .chart-refresh-button {
+.chart-toolbar .chart-refresh-button,
+.chart-toolbar .chart-report-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1059,6 +1060,7 @@ button:disabled,
 
 .chart-toolbar .chart-filter-toggle .material-symbols-rounded,
 .chart-toolbar .chart-refresh-button .material-symbols-rounded,
+.chart-toolbar .chart-report-button .material-symbols-rounded,
 .chart-custom-range button .material-symbols-rounded {
   font-size: 20px;
 }
@@ -1086,6 +1088,7 @@ button:disabled,
 
   .chart-toolbar .chart-filter-toggle,
   .chart-toolbar .chart-refresh-button,
+  .chart-toolbar .chart-report-button,
   .chart-custom-range button {
     width: 100%;
   }
@@ -1664,8 +1667,7 @@ body.homepage-editing .chart-add-tile {
   }
 
   .dashboard-heading-actions .button {
-    /* Leave room for the labels with several actions; on narrow screens they may wrap to a new line. */
-    flex: 1 1 11.5rem;
+    flex: 1 1 0;
     width: auto;
     min-width: 0;
     padding-inline: 0.45rem;
