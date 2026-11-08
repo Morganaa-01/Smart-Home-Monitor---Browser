@@ -1,3 +1,10 @@
+/*
+A belépés közös szabályai minden védett API számára.
+A munkamenetet aláírt cookie tárolja, nincs hozzá külön adatbázis.
+Az aláírás a módosítást ellenőrzi, nem titkosítja a tartalmat:
+ezért jelszót vagy API-kulcsot nem teszünk a cookie-ba.
+*/
+// Közös hitelesítési segéd: ellenőrzi a belépési adatokat, és aláírt munkamenet-cookie-t kezel.
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 const COOKIE_NAME = "greenhouse_session";
@@ -16,6 +23,7 @@ function getAuthSettings() {
   return { username, password, sessionSecret };
 }
 
+// Az azonos hosszúságú hash-ek összehasonlítása csökkenti az időzítésből származó információszivárgást.
 function secureEquals(left, right) {
   // Így az összehasonlítás futási idejéből nem lehet következtetni a belépési adatokra.
   const leftHash = createHash("sha256").update(left).digest();
@@ -55,6 +63,7 @@ export function isAuthenticated(req) {
   }
 }
 
+// False esetén a hívónak vissza kell térnie, különben a védett művelet is lefuthatna.
 export function requireAuthentication(req, res) {
   if (isAuthenticated(req)) return true;
   res.status(401).json({ error: "Bejelentkezés szükséges.", code: "authentication_required" });
@@ -76,6 +85,7 @@ export function verifyCredentials(username, password) {
   };
 }
 
+// A lejárati dátum ezredmásodperc, a Max-Age másodperc. Ezért kell az átváltás.
 export function createSessionCookie(username, sessionSecret, req) {
   // A cookie JavaScriptből nem olvasható, és nyolc óra után automatikusan lejár.
   const payload = Buffer.from(JSON.stringify({

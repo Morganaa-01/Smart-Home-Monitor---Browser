@@ -1,3 +1,10 @@
+/*
+Közös kapcsolat a ThingSpeak API-val.
+Itt áll össze a csatorna címe, az időszak és szükség esetén az olvasási kulcs.
+A felület és az AI ezt a segédet használja, ezért
+a hálózati és válaszformátum-hibákat egy helyen kezelhetjük.
+*/
+// Közös ThingSpeak-kapcsolat: összeállítja a lekérdezést, lekéri a rekordokat és egységes hibát ad vissza.
 const DEFAULT_CHANNEL_ID = "3560978";
 const MAX_RESULTS = 8000;
 
@@ -55,8 +62,13 @@ export async function fetchThingSpeakFeeds({ results = 60, days, start, end } = 
     );
   }
 
-  const data = await response.json();
-  if (!Array.isArray(data.feeds)) {
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    throw new ThingSpeakError("A ThingSpeak válasza nem olvasható JSON-adat.", "invalid_thingspeak_response");
+  }
+  if (!Array.isArray(data?.feeds)) {
     throw new ThingSpeakError(
       "A ThingSpeak nem adott vissza mérési adatokat.",
       "invalid_thingspeak_response"
