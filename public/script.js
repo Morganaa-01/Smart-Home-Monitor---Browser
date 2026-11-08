@@ -12,7 +12,7 @@ const state = {
   readings: null,
   lastEntry: null,
   lastChartFetchedAt: null,
-  chartFeeds: null,
+  chartFiltered: false,
   chartPeriodLabel: "",
   refreshTimer: null,
   chartRefreshTimer: null
@@ -769,8 +769,9 @@ async function loadChartHistory({ quiet = false } = {}) {
 
     const feeds = Array.isArray(data.feeds) ? data.feeds : [];
     renderThingSpeakCharts(feeds);
-    // Kept so the PDF report can include the same charts that are on screen.
-    state.chartFeeds = feeds;
+    // Kept for the PDF report. The charts themselves are taken from the page.
+    // The default view is the last 60 measurements. Anything else counts as a filter.
+    state.chartFiltered = chartCustomRangeActive || rangeSelect.value !== "results:60";
     state.chartPeriodLabel = `${rangeLabel} · ${new Intl.NumberFormat("hu-HU").format(feeds.length)} mérési pont`;
     state.lastChartFetchedAt = new Date();
     const latestMeasurement = feeds.at(-1)?.created_at;
@@ -1226,8 +1227,10 @@ function initializeDashboard() {
   setupMetricEditor();
   setupChartEditor();
   // The PDF module is a separate file; if it is missing (e.g. an old cached version), show a readable message.
-  // The history charts are added as a second page when they have been loaded.
-  const reportOptions = () => ({ feeds: state.chartFeeds, periodLabel: state.chartPeriodLabel });
+  // The charts go into the PDF only when a filter is set, otherwise the PDF has the general data only.
+  const reportOptions = () => (state.chartFiltered
+    ? { charts: [...document.querySelectorAll("[data-field-chart] svg")], periodLabel: state.chartPeriodLabel }
+    : {});
   const getReportModule = () => {
     if (!state.lastEntry) throw new Error("Még nincs exportálható mérés.");
     const report = window.GreenhouseReport;
@@ -1236,11 +1239,11 @@ function initializeDashboard() {
     }
     return report;
   };
-  $("exportPdfBtn").addEventListener("click", () => {
+  $("exportPdfBtn").addEventListener("click", async () => {
     try {
       // The report uses the loaded data; demo toggles do not override the device states.
       const report = getReportModule();
-      const name = report.download(state.lastEntry, reportOptions());
+      const name = await report.download(state.lastEntry, reportOptions());
       addActivityLog(`A mérési jelentés PDF-ként letöltődött (${name}).`);
     } catch (error) {
       addActivityLog(error.message, "error");
