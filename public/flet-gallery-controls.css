@@ -1,5 +1,6 @@
 /*
- * A gombok és a vonaldiagram megjelenését ezekből a Flet Studio példákból vettük:
+ * A gombok és az adatbeviteli vezérlők megjelenését ezekből a Flet Studio példákból merítettük;
+ * itt igazítjuk őket az alkalmazás saját színeihez és elrendezéséhez:
  * Gombok: https://studio.flet.dev/gallery/buttons
  * Automatikus kiegészítés: https://studio.flet.dev/gallery/input/autocomplete
  * Kártyák: https://studio.flet.dev/gallery/layout/card

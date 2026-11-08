@@ -1,4 +1,10 @@
-// Ezt a leírást az asszisztens használja a ThingSpeak-mezők értelmezéséhez.
+/*
+A szenzormezők közös leírása.
+A mezők sorszámainak egyezniük kell a mikrovezérlő adatküldésével:
+ha ott változik a kiosztás, ezt a megfeleltetést is módosítani kell.
+A fényküszöb számítási szabály, nem növényfajta szerinti célérték.
+*/
+// Itt vannak egy helyen a növényházi eszközök, a ThingSpeak-mezők és az értelmezésükhöz szükséges beállítások.
 export const GREENHOUSE_CONFIG = Object.freeze({
   controller: "ESP32",
   automationLocation: "local_device",

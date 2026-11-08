@@ -1,3 +1,11 @@
+/*
+A chat útja: belépés és bemenet ellenőrzése,
+mérések lekérése, majd a válasz összeállítása.
+Az AI csak a szerver által engedélyezett eszközöket használhat.
+A számításokat lehetőleg a kód végzi; a modell értelmezi az eredményt
+és röviden megfogalmazza. A legutóbbi esőre külön válaszág van.
+*/
+// Chat API: ellenőrzi a belépést, szükség esetén adatot kér le, majd az AI-val megfogalmaztatja a választ.
 import { GREENHOUSE_TOOLS, runGreenhouseTool } from "./lib/greenhouse-tools.js";
 import { GREENHOUSE_INSTRUCTIONS, GREENHOUSE_MODEL } from "./lib/greenhouse-prompt.js";
 import { requireAuthentication } from "./lib/auth.js";
@@ -22,6 +30,7 @@ async function fetchOpenAIWithRetry(apiKey, body) {
       if (response.status === 503 && attempt < MAX_OPENAI_ATTEMPTS - 1) {
         const errorBody = await response.clone().json().catch(() => ({}));
         if (errorBody.error?.code === "server_is_overloaded") {
+          // Ha a szolgáltatás megad várakozási időt, azt követjük; ennek hiányában fokozatosan várunk többet.
           const retryAfter = Number(response.headers.get("retry-after"));
           const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
             ? Math.min(retryAfter * 1000, 5000)
@@ -136,6 +145,7 @@ async function getLastRainSummary() {
   };
 }
 
+// Ezt a választ a kód fogalmazza meg, ezért a prompt átírása ezt az ágat nem változtatja meg.
 function formatLastRainReply(summary) {
   // Ezt a rövid választ a szerver állítja össze a mérési adatokból, nem a modell találja ki.
   if (!summary.total_samples) {
@@ -176,6 +186,7 @@ function formatLastRainReply(summary) {
   return "Az érzékelő " + startTime + " és " + endTime + " között jelzett esőt, körülbelül " + duration + " hosszan. A csapadék mennyiségét nem méri.";
 }
 
+// Csak felhasználói és asszisztensi szöveget fogadunk el. A kliens nem adhat rendszerutasítást vagy eszközeredményt.
 function sanitizeConversation(conversation) {
   // A böngésző csak a szerepet és a szöveget küldheti; utasítást vagy eszközeredményt nem fogadunk el előzményként.
   if (!Array.isArray(conversation)) return [];
@@ -248,6 +259,7 @@ async function requestModel(apiKey, input, allowToolCalls = true) {
   return data;
 }
 
+// A call_id köti össze az eszközkérést az eredményével.
 async function executeToolCall(toolCall) {
   // Az asszisztens kérésére csak olvasunk az adatokból, eszközállapotot nem módosítunk.
   try {
@@ -271,6 +283,7 @@ async function executeToolCall(toolCall) {
   }
 }
 
+// A körök korlátja megakadályozza a végtelen eszközhívási láncot.
 async function runAssistantTurn(apiKey, input, allowToolCalls) {
   let response = await requestModel(apiKey, input, allowToolCalls);
   let round = 0;
@@ -280,6 +293,7 @@ async function runAssistantTurn(apiKey, input, allowToolCalls) {
     if (toolCalls.length === 0) return response;
     if (round >= MAX_TOOL_ROUNDS) break;
 
+    // Több adatlekérést párhuzamosan is végrehajthatunk, mert mindegyik csak olvas a csatornából.
     const toolOutputs = await Promise.all(toolCalls.map(executeToolCall));
 
     // A modell korábbi eszközhívásait is visszaadjuk, hogy az eredményt hozzá tudja kötni.
@@ -294,6 +308,7 @@ async function runAssistantTurn(apiKey, input, allowToolCalls) {
   throw error;
 }
 
+// Csak a megjeleníthető szöveget vesszük ki, a belső eszközhívásokat nem.
 function extractReply(response) {
   return (response.output || [])
     .flatMap((item) => item.content || [])

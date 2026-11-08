@@ -1,3 +1,11 @@
+/*
+Helyi indítás: npm.cmd start
+Az Express kiszolgálja a public mappát, az API-kéréseket pedig
+ugyanazok a kezelők kapják meg, amelyek Vercelen is futnak.
+Így nem kell külön helyi másolatot fenntartani az API működéséből.
+Ez CommonJS-fájl; az API-modulokat dinamikus import tölti be.
+*/
+// Helyi fejlesztőszerver: kiszolgálja a public felületet, és a Vercel API-kezelőire irányítja a kéréseket.
 const express = require("express");
 const path = require("path");
 require("dotenv").config();
