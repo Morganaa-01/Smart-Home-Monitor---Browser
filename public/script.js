@@ -40,6 +40,8 @@ function getSavedChatHistory() {
   }
 }
 
+// The history is rebuilt from the chat bubbles on the page, so there is no second copy of the messages
+// that could get out of sync. The "thinking" placeholder is skipped, otherwise it would be shown again after a reload.
 function saveChatHistory() {
   // Save only real user and assistant messages, not system notices.
   const messages = [...$("chatMessages").querySelectorAll(".chat-message")]
@@ -84,6 +86,7 @@ function restoreCachedReading() {
   }
 }
 
+// Broken JSON in localStorage must not break the page, so any problem falls back to an empty log.
 function getActivityLog() {
   try {
     const savedEntries = JSON.parse(localStorage.getItem(ACTIVITY_LOG_KEY) || "[]");
@@ -132,6 +135,7 @@ function renderActivityLog() {
   });
 }
 
+// Newest entry goes first and the list is cut at ACTIVITY_LOG_LIMIT, so localStorage does not grow forever.
 function addActivityLog(message, level = "info") {
   const entries = getActivityLog();
   entries.unshift({ at: new Date().toISOString(), message, level });
@@ -143,6 +147,7 @@ function addActivityLog(message, level = "info") {
   renderActivityLog();
 }
 
+// Show the saved log when the page opens and let the user clear it.
 function setupActivityLog() {
   renderActivityLog();
   $("clearActivityLogBtn").addEventListener("click", () => {
@@ -235,6 +240,7 @@ function formatBudapestTime(value) {
   }).format(date);
 }
 
+// Short time for the status lines. It is always Budapest time, so the hour is the same for everyone who looks at the page.
 function formatCompactBudapestTime(value) {
   if (!value) return "nincs adat";
   const date = new Date(value);
@@ -250,6 +256,8 @@ function formatCompactBudapestTime(value) {
   }).format(date);
 }
 
+// A datetime-local value looks like 2026-11-07T15:33. We cut it up with a regex instead of new Date(),
+// so the time zone of the browser cannot shift the hour.
 function formatCompactDateTimeInput(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value || "");
   return match ? `${match[3]}.${match[2]}. ${match[4]}:${match[5]}` : value;
@@ -592,10 +600,13 @@ function addChatMessage(sender, message, type, save = true) {
   return body;
 }
 
+// A plain "szia" does not need an AI call, so it gets a fixed answer (see submitChat) and costs nothing.
 function isSimpleGreeting(message) {
   return /^(szia|helló|hello|üdv|jó napot|jó reggelt|jó estét|szevasz|szervusz|hi|hey)[!.?\s]*$/iu.test(message.trim());
 }
 
+// The model sometimes answers with markdown (**bold**, # headings, - lists) but the chat bubble shows plain text,
+// so we remove the markdown characters instead of showing stray asterisks.
 function cleanAssistantReply(message) {
   return String(message)
     .replace(/\\([\\`*_{}\[\]()#+\-.!>])/g, "$1")
@@ -613,6 +624,7 @@ function numericField(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+// Hungarian number format (decimal comma). null shows a dash, never a fake zero.
 function formatted(value, digits = 0) {
   return value === null ? "—" : new Intl.NumberFormat("hu-HU", {
     maximumFractionDigits: digits,
@@ -620,20 +632,25 @@ function formatted(value, digits = 0) {
   }).format(value);
 }
 
+// Value + unit in one card; a dash when the sensor sent nothing.
 function setMetric(id, value, unit, digits = 0) {
   $(id).textContent = value === null ? "—" : `${formatted(value, digits)} ${unit}`;
 }
 
+// Same as setMetric, for the places where the unit is written separately in the HTML.
 function setNumber(id, value, digits = 0) {
   $(id).textContent = formatted(value, digits);
 }
 
+// The CSS class (status-on, status-off, ...) decides the colour of the badge.
 function setStateBadge(id, label, stateName) {
   const element = $(id);
   element.textContent = label;
   element.className = `status status-${stateName}`;
 }
 
+// Follow the real device state until the user clicks the demo switch once. After that the page keeps the choice of the user,
+// because these switches are only a demo, they do not control the ESP32.
 function syncDemoSwitch(id, isOn) {
   const control = $(id);
   if (!control.dataset.previewChanged) control.checked = isOn === true;
@@ -801,6 +818,7 @@ function setWeatherStatus(message, isError = false) {
   status.classList.toggle("weather-error", isError);
 }
 
+// Not every value is a number (the service can send nothing), so show a dash instead of NaN.
 function weatherNumber(value, digits = 0) {
   const number = Number(value);
   return Number.isFinite(number)
@@ -808,6 +826,7 @@ function weatherNumber(value, digits = 0) {
     : "—";
 }
 
+// timezone=auto makes Open-Meteo return the time of the place itself, not the time of the browser.
 async function loadCurrentWeather(latitude, longitude, placeName) {
   setWeatherStatus("Időjárási adatok lekérése…");
   // The weather service gives the current data in its own local time for the coordinates.
@@ -841,6 +860,7 @@ async function loadCurrentWeather(latitude, longitude, placeName) {
   setWeatherStatus("Sikeresen betöltve.");
 }
 
+// If the user already picked a suggestion we reuse its coordinates, so there is no second geocoding request.
 async function searchWeatherByCity(event) {
   event.preventDefault();
   const query = $("weatherLocationInput").value.trim();
@@ -872,12 +892,14 @@ let weatherSelectedPlace = null;
 let weatherSelectedQuery = "";
 let weatherActiveSuggestion = -1;
 
+// Remove duplicates (for example Budapest, Budapest, Magyarország) before joining the name.
 function formatWeatherPlace(place) {
   return [place.name, place.admin1, place.country]
     .filter((value, index, values) => value && values.indexOf(value) === index)
     .join(", ");
 }
 
+// Geocoding of Open-Meteo, only 5 results and in Hungarian, that is enough for a suggestion list.
 async function findWeatherPlaces(query) {
   const params = new URLSearchParams({ name: query, count: "5", language: "hu", format: "json" });
   const response = await fetch("https://geocoding-api.open-meteo.com/v1/search?" + params.toString(), { cache: "no-store" });
@@ -886,6 +908,7 @@ async function findWeatherPlaces(query) {
   return data.results || [];
 }
 
+// Besides hiding the list the aria attributes are reset too, so screen readers do not read an old list.
 function closeWeatherSuggestions() {
   const input = $("weatherLocationInput");
   const list = $("weatherLocationSuggestions");
@@ -896,6 +919,7 @@ function closeWeatherSuggestions() {
   weatherActiveSuggestion = -1;
 }
 
+// Submit the form right after the click, so choosing a suggestion loads the weather in one step.
 function selectWeatherSuggestion(place) {
   const input = $("weatherLocationInput");
   input.value = formatWeatherPlace(place);
@@ -905,6 +929,7 @@ function selectWeatherSuggestion(place) {
   $("weatherForm").requestSubmit();
 }
 
+// Requests can finish in a different order than they started. requestId and the query check throw away the old ones.
 async function loadWeatherSuggestions(query) {
   const requestId = ++weatherSuggestionRequest;
   try {
@@ -930,6 +955,8 @@ async function loadWeatherSuggestions(query) {
   }
 }
 
+// The selection wraps around with modulo. aria-activedescendant is used instead of moving the focus,
+// so the user can keep typing while the list is open.
 function moveWeatherSuggestionSelection(direction) {
   const input = $("weatherLocationInput");
   const options = [...$("weatherLocationSuggestions").querySelectorAll('[role="option"]')];
@@ -944,6 +971,7 @@ function moveWeatherSuggestionSelection(direction) {
   input.setAttribute("aria-activedescendant", options[weatherActiveSuggestion].id);
 }
 
+// Debounce: we wait until the user stops typing, otherwise every key would be an API call.
 function handleWeatherLocationInput(event) {
   const query = event.currentTarget.value.trim();
   weatherSelectedPlace = null;
@@ -956,6 +984,7 @@ function handleWeatherLocationInput(event) {
   weatherSuggestionTimer = setTimeout(() => loadWeatherSuggestions(query), 300);
 }
 
+// Arrow keys move in the list, Enter picks the highlighted item.
 function handleWeatherLocationKeydown(event) {
   if (event.key === "ArrowDown") {
     event.preventDefault();
@@ -974,6 +1003,7 @@ function handleWeatherLocationKeydown(event) {
   }
 }
 
+// Reverse geocoding with Nominatim, only after the user clicks the location button (this is in its usage policy).
 async function findNearbyPlaceName(latitude, longitude) {
   const params = new URLSearchParams({
     format: "jsonv2",
@@ -1112,6 +1142,8 @@ async function submitChat(event) {
 
 // ---------- Starting the page ----------
 
+// The theme is a "dark" class on <html> and a value in localStorage. The theme-color meta keeps the mobile browser bar in sync.
+// TODO: the same code is in add-device.js, it could be one shared file.
 function setupTheme() {
   // The browser remembers the chosen theme, so it does not reset after changing page.
   const savedTheme = localStorage.getItem("greenhouse-theme");
@@ -1130,6 +1162,8 @@ function setupTheme() {
   });
 }
 
+// Hamburger menu for small screens. It closes after a link click, so it does not cover the section we scrolled to.
+// aria-expanded and aria-label are updated for screen readers.
 function setupNavigation() {
   const menuButton = $("menuToggle");
   const menuIcon = menuButton.querySelector(".material-symbols-rounded");
@@ -1158,6 +1192,8 @@ function setupDemoSwitches() {
   });
 }
 
+// Restores the last chart range from localStorage. The quick select and the custom range exclude each other:
+// when the custom range is active the select is empty.
 function setupChartControls() {
   const select = $("chartRangeSelect");
   const filterPanel = $("chartFilterPanel");
@@ -1309,6 +1345,7 @@ function setupSummaryEditor() {
   let draggedKey = null;
   let isOpen = false;
 
+  // Rows are hidden, not deleted, so they can be added back later. Visible rows are appended in the saved order.
   function updateRows() {
     const rows = new Map(
       [...rowsContainer.querySelectorAll("[data-summary-key]")]
@@ -1344,6 +1381,7 @@ function setupSummaryEditor() {
     addButton.disabled = select.disabled;
   }
 
+  // Every change is saved at once and both the card and the editor list are drawn again.
   function saveOrder(nextOrder) {
     order = nextOrder;
     localStorage.setItem(SUMMARY_STORAGE_KEY, JSON.stringify(order));
@@ -1351,6 +1389,7 @@ function setupSummaryEditor() {
     renderEditorList();
   }
 
+  // Take the row out and put it at the position of the target row (used by drag and drop and by the buttons).
   function moveRow(fromKey, toKey) {
     if (!fromKey || !toKey || fromKey === toKey) return;
     const nextOrder = [...order];
@@ -1362,6 +1401,7 @@ function setupSummaryEditor() {
     saveOrder(nextOrder);
   }
 
+  // The list is built from DOM elements, not from innerHTML, so no text can turn into HTML.
   function renderEditorList() {
     list.replaceChildren();
     order.forEach((key, index) => {
@@ -1477,6 +1517,7 @@ function setupMetricEditor() {
 
   let draggedKey = null;
 
+  // Same idea as updateRows, but for the environment cards.
   function applyOrder() {
     const cards = new Map(
       [...grid.querySelectorAll("[data-metric-card]")]
@@ -1511,6 +1552,7 @@ function setupMetricEditor() {
     addButton.disabled = select.disabled;
   }
 
+  // Same as in the summary editor, but for the environment cards.
   function saveOrder(nextOrder) {
     order = nextOrder;
     localStorage.setItem(METRIC_STORAGE_KEY, JSON.stringify(order));
@@ -1518,6 +1560,7 @@ function setupMetricEditor() {
     renderList();
   }
 
+  // Same reordering as moveRow.
   function moveCard(fromKey, toKey) {
     if (!fromKey || !toKey || fromKey === toKey) return;
     const next = [...order];
@@ -1529,6 +1572,7 @@ function setupMetricEditor() {
     saveOrder(next);
   }
 
+  // Editor list of the cards, built from DOM elements like renderEditorList.
   function renderList() {
     list.replaceChildren();
     order.forEach((key, index) => {
@@ -1635,6 +1679,8 @@ function setupChartEditor() {
     8: "Növényház teteje"
   };
 
+  // Set removes duplicates and slice keeps at most MAX_CHART_SLOTS. The charts are drawn again from the feeds that are
+  // already loaded, so there is no new API call.
   function saveFields(nextFields) {
     fields = [...new Set(nextFields)].slice(0, MAX_CHART_SLOTS);
     localStorage.setItem(CHART_STORAGE_KEY, JSON.stringify(fields));
@@ -1642,6 +1688,7 @@ function setupChartEditor() {
     if (chartFeedsForResize) renderThingSpeakCharts(chartFeedsForResize);
   }
 
+  // One tile for every chosen field and an empty tile with a plus button for each free slot.
   function renderSlots() {
     grid.replaceChildren();
     fields.forEach((field) => {
@@ -1734,10 +1781,12 @@ function showDashboard() {
   }));
 }
 
+// Error text of the login form.
 function setLoginMessage(message) {
   $("loginMessage").textContent = message;
 }
 
+// The session cookie is HttpOnly, so JavaScript cannot read it. This is why we have to ask the server if we are logged in.
 async function checkLogin() {
   const response = await fetch("/api/auth", { cache: "no-store" });
   const result = await response.json().catch(() => ({}));
@@ -1745,6 +1794,8 @@ async function checkLogin() {
   if (result.authenticated) showDashboard();
 }
 
+// Password show/hide button and the login form. The password is only sent to the server, it is not stored in the browser.
+// TODO: script.js is already very long, the login part could move to its own file.
 function setupAuthentication() {
   const loginForm = $("loginForm");
   const loginButton = $("loginSubmit");
