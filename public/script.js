@@ -1224,7 +1224,7 @@ function initializeDashboard() {
   setupSummaryEditor();
   setupMetricEditor();
   setupChartEditor();
-  // A PDF-modul külön fájl; ha egy régi gyorsítótárazott változat miatt hiányzik, érthető üzenetet adunk.
+  // The PDF module is a separate file; if it is missing (e.g. an old cached version), show a readable message.
   const getReportModule = () => {
     if (!state.lastEntry) throw new Error("Még nincs exportálható mérés.");
     const report = window.GreenhouseReport;
@@ -1235,7 +1235,7 @@ function initializeDashboard() {
   };
   $("exportPdfBtn").addEventListener("click", () => {
     try {
-      // A jelentés a betöltött adatokról készül, a demókapcsolók nem írják felül az eszközállapotokat.
+      // The report uses the loaded data; demo toggles do not override the device states.
       const report = getReportModule();
       const name = report.download(state.lastEntry);
       addActivityLog(`A mérési jelentés PDF-ként letöltődött (${name}).`);
