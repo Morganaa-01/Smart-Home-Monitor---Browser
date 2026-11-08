@@ -1,56 +1,68 @@
-# IoT Smart Greenhouse Web Monitoring
+# IoT okos növényház webes felügyelete
 
-Browser interface for an ESP32-based greenhouse prototype. The server reads the latest measurements from the configured ThingSpeak channel, the dashboard shows the values and device states, and the AI chat receives the current data package.
+ESP32-alapú növényházi prototípus böngészős felülete. A szerver a beállított ThingSpeak-csatornáról olvassa a legutóbbi méréseket, a dashboard megjeleníti az értékeket és az eszközállapotokat, az AI-chat pedig megkapja az aktuális adatcsomagot.
 
-## ThingSpeak fields
+## ThingSpeak mezők
 
-The channel ID and, if needed, the Read API Key are set as server-side environment variables. The key is never sent to the browser; it is required for requests to a private channel.
+A csatornaazonosítót és – ha szükséges – a Read API Key-t szerveroldali környezeti változóként állítjuk be. A kulcs nem kerül a böngészőbe; privát csatornánál a lekéréshez szükséges.
 
-| Field | Channel setting |
+| Mező | Csatornabeállítás |
 | --- | --- |
-| `field1` | Temperature (°C) |
-| `field2` | Relative humidity (%) |
-| `field3` | Air pressure (unit not specified by the firmware) |
-| `field4` | Illuminance (lux) |
-| `field5` | Rain (1/0) |
-| `field6` | Fan (1/0) |
+| `field1` | Hőmérséklet (°C) |
+| `field2` | Relatív páratartalom (%) |
+| `field3` | Légnyomás (a firmware egysége nincs megadva) |
+| `field4` | Megvilágítás (lux) |
+| `field5` | Eső (1/0) |
+| `field6` | Ventilátor (1/0) |
 | `field7` | LED (1/0) |
-| `field8` | Roof (1/0) |
+| `field8` | Tető (1/0) |
 
-The dashboard requests the latest 60 feeds from the server-side `/api/thingspeak` endpoint; it draws the measurement history from the same data, and the latest package is also passed to the AI chat.
+A dashboard a legutóbbi 60 feedet a szerveroldali `/api/thingspeak` végponton kéri le; ugyanebből rajzolja a mérési előzményeket, a legfrissebb csomagot pedig az AI-chat is megkapja.
 
-## Login
+## Bejelentkezés
 
-The server checks the login credentials and issues a signed, HttpOnly session cookie. The ThingSpeak and AI endpoints cannot be used without logging in.
+A felülethez a szerver ellenőrzi a belépési adatokat, és aláírt, HttpOnly munkamenet-sütit ad ki. A ThingSpeak- és AI-végpontok bejelentkezés nélkül nem használhatók.
 
-Set these environment variables both locally in the `.env` file and in Vercel:
+Állítsd be ezeket a környezeti változókat helyben a `.env` fájlban és Vercelben is:
 
-- `ADMIN_USERNAME` – administrator username
-- `ADMIN_PASSWORD` – administrator password
-- `SESSION_SECRET` – a random secret at least 32 characters long
+- `ADMIN_USERNAME` – a rendszergazda felhasználóneve
+- `ADMIN_PASSWORD` – a rendszergazda jelszava
+- `SESSION_SECRET` – legalább 32 karakter hosszú, véletlenszerű titok
 
-Do not put the login password or the session secret in the source code, and do not upload them to GitHub. On public hosting, use a unique, strong password.
+A belépési jelszót és a munkamenet titkát ne tedd a forráskódba és ne töltsd fel GitHubra. Nyilvános tárhelyen használj egyedi, erős jelszót.
 
-## Running locally
+## Indítás helyben
 
 ```powershell
 npm install
 npm start
 ```
 
-If PowerShell blocks `npm` because script execution is disabled, use `npm.cmd install` and `npm.cmd start` instead.
+Ha a PowerShell letiltja az `npm` parancsot (a szkriptfuttatás tiltva van), használd helyette az `npm.cmd install` és az `npm.cmd start` parancsot.
 
-The local server reads the `OPENAI_API_KEY`, `THINGSPEAK_CHANNEL_ID`, `THINGSPEAK_READ_API_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` and `SESSION_SECRET` variables from the `.env` file in the project root. Do not commit the `.env` file to version control. When deploying to a host, set the same variables in the host's environment settings.
+A helyi szerver a projekt gyökérmappájában lévő `.env` fájlból olvassa az `OPENAI_API_KEY`, `THINGSPEAK_CHANNEL_ID`, `THINGSPEAK_READ_API_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` és `SESSION_SECRET` változókat. A `.env` fájlt ne töltsd fel verziókezelőbe. Tárhelyre telepítéskor ugyanezeket a változókat a tárhely környezeti beállításai között add meg.
 
-The AI chat is shown even without a server, but it can only answer once the API key is configured. Live ThingSpeak data requires an internet connection.
+Az AI-chat szerver nélkül is megjelenik, de válaszolni csak az API-kulcs beállítása után tud. A ThingSpeak élő adatai internetkapcsolatot igényelnek.
 
-## Saving and emailing the measurement report
+## Mérési jelentés mentése és küldése e-mailben
 
-Next to the environment measurements, the **Mentés PDF-be** (Save to PDF) button immediately downloads a single-page A4 PDF file (`noveny-haz-jelentes-YYYY-MM-DD.pdf`). The PDF is generated in the browser, without external libraries or a server.
+A Környezeti mérések mellett a **Mentés PDF-be** gomb azonnal letölt egy A4-es PDF-fájlt
+(`noveny-haz-jelentes-ÉÉÉÉ-HH-NN.pdf`). A PDF a böngészőben készül,
+külső könyvtár és szerver nélkül.
 
-The **Küldés e-mailben** (Send by email) button prepares the same PDF for email:
+A **Küldés e-mailben** gomb ugyanezt a PDF-et e-mailhez készíti elő:
 
-- Where the browser supports file sharing (Chrome and Edge on Windows 10/11, Android, iOS), the system share sheet opens; choosing a mail app (Mail, Outlook, Gmail) there attaches the PDF automatically.
-- In other browsers the PDF is downloaded and the default mail client opens with a prefilled subject. The downloaded file has to be attached by hand, because a `mailto:` link cannot carry attachments.
+- Ahol a böngésző támogatja a fájlmegosztást (Windows 10/11 Chrome és Edge, Android, iOS),
+  megnyílik a rendszer megosztási ablaka; ott a levelezőalkalmazást (Posta, Outlook, Gmail)
+  választva a PDF már csatolva van.
+- Más böngészőben a PDF letöltődik, és megnyílik az alapértelmezett levelező kitöltött
+  tárggyal. Itt a letöltött fájlt kézzel kell csatolni, mert a `mailto:` hivatkozás
+  csatolmányt nem tud átadni.
 
-The report contains the eight most recently loaded measurements and device states, the measurement time and the time the report was created. Old or missing data is marked separately. It does not export the chat, login details or API keys. The buttons are disabled until the first measurement has loaded.
+Az első oldal a legutóbb betöltött nyolc mérést és eszközállapotot, a mérés idejét
+és a jelentés készítésének idejét tartalmazza.
+Ha a grafikonok már betöltődtek, a második oldalon a nyolc mérés előzménygrafikonja is
+szerepel, ugyanarra az időszakra, amelyet a grafikonok szűrőjében kiválasztottál.
+Régi vagy hiányzó adatot külön jelöl.
+Nem exportálja a chatet, a belépési adatokat vagy az API-kulcsokat.
+A gombok az első mérés betöltéséig nem használhatók.
