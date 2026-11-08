@@ -12,6 +12,8 @@ export class ThingSpeakError extends Error {
   }
 }
 
+// The default channel ID is only a fallback. A different channel and a Read API key come from environment variables.
+// 8000 is the maximum number of records ThingSpeak gives in one request.
 export async function fetchThingSpeakFeeds({ results = 60, days, start, end } = {}) {
   // Channel settings come from the server environment variables.
   const channelId = process.env.THINGSPEAK_CHANNEL_ID || DEFAULT_CHANNEL_ID;
