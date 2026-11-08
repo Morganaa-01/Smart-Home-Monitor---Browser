@@ -1664,7 +1664,8 @@ body.homepage-editing .chart-add-tile {
   }
 
   .dashboard-heading-actions .button {
-    flex: 1 1 0;
+    /* Három műveletnél is legyen hely a feliratnak; keskeny képernyőn új sorba törhetnek. */
+    flex: 1 1 11.5rem;
     width: auto;
     min-width: 0;
     padding-inline: 0.45rem;
