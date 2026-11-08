@@ -1664,7 +1664,7 @@ body.homepage-editing .chart-add-tile {
   }
 
   .dashboard-heading-actions .button {
-    /* Három műveletnél is legyen hely a feliratnak; keskeny képernyőn új sorba törhetnek. */
+    /* Leave room for the labels with several actions; on narrow screens they may wrap to a new line. */
     flex: 1 1 11.5rem;
     width: auto;
     min-width: 0;
