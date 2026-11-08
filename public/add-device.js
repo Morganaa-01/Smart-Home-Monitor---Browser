@@ -1,3 +1,11 @@
+/*
+Az eszközkezelő űrlapja és kártyái.
+A listát a böngészőben mentjük, és ebből rajzoljuk ki az eszközöket.
+A felvétel nyilvántartási művelet: nem párosít automatikusan
+hardvert, és nem módosítja az ESP32 programját.
+Szerkesztés után a tárolt listát és a látható kártyákat is frissítjük.
+*/
+// Az eszközkezelő felülete: eszközöket vesz fel, szerkeszt és töröl a böngésző helyi tárhelyén.
 const deviceForm = document.getElementById("deviceForm");
 const deviceList = document.getElementById("deviceList");
 const themeToggle = document.getElementById("themeToggle");
@@ -46,6 +54,7 @@ const CURRENT_GREENHOUSE_DEVICES = [
 
 // ----------------------- Mentett eszközök adatai ---------------------------
 
+// Az alaplista egyszeri feltöltése miatt a törölt kártya nem jelenik meg újra minden indításkor.
 function loadDevices() {
   // Első megnyitáskor betesszük az ESP32 ismert eszközeit, utána a felhasználó listáját töltjük vissza.
   try {
@@ -72,6 +81,7 @@ function loadDevices() {
 
 let devices = loadDevices();
 
+// Ez helyi mentés; másik telefonra vagy számítógépre nem szinkronizál.
 function saveDevices() {
   // Ez az eszközlista böngészőnként külön tárolódik, nem a ThingSpeak-csatornába kerül.
   localStorage.setItem("smartHomeDevices", JSON.stringify(devices));
@@ -111,6 +121,7 @@ function addDetail(container, label, value) {
 
 // -------------------------- Eszközlista megjelenítése ----------------------
 
+// Mentés vagy törlés után a tárolt listából újraépítjük a kártyákat.
 function renderDevices() {
   // A listaelemeket DOM-elemekből építjük fel; a felhasználói szöveg nem HTML-kódként fut le.
   deviceList.replaceChildren();
@@ -176,6 +187,7 @@ function resetForm() {
 
 // ----------------------- Eszköz felvétele, szerkesztése, törlése ------------
 
+// Visszatöltjük az adatokat az űrlapba, így ugyanaz az űrlap használható szerkesztésre is.
 function editDevice(index) {
   // A kiválasztott eszköz adatait visszatöltjük az űrlap mezőibe.
   const device = devices[index];
@@ -235,6 +247,7 @@ deviceForm.addEventListener("submit", (event) => {
     ...(existingDevice?.source ? { source: existingDevice.source } : {})
   };
 
+  // Szerkesztéskor a meglévő rekord helyére írunk, új eszköznél pedig a lista végére tesszük.
   if (isNewDevice) {
     devices.push(deviceData);
   } else {
@@ -305,6 +318,7 @@ function setupLogout() {
 
 async function initializeDevicePage() {
   try {
+    // A felületet csak a szerver által megerősített bejelentkezés után mutatjuk meg.
     const response = await fetch("/api/auth", { cache: "no-store" });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.authenticated) {

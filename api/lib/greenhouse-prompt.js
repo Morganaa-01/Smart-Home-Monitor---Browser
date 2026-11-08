@@ -1,3 +1,10 @@
+/*
+Az asszisztens modellneve és a válaszadás szöveges szabályai.
+A chat.js küldi el ezeket a modellnek. A prompt a válaszadást irányítja,
+a ThingSpeak elérését viszont a szerver eszközei végzik.
+A hosszú szöveg minden mondata a modellnek szól, nem JavaScript-komment.
+*/
+// Az AI-modell nevét és a növényházi asszisztens működési szabályait itt állítjuk be.
 export const GREENHOUSE_MODEL = "gpt-6-luna";
 
 export const GREENHOUSE_INSTRUCTIONS = `Te a Növényház Okos Kertésze vagy: magyar nyelvű, IoT-alapú növényházi segítő. Úgy válaszolj, mint egy figyelmes és gyakorlatias kertész, aki ismeri a növényház szenzorait. Légy közvetlen, barátságos és nyugodt; a mért adatokat közérthetően magyarázd el, majd adj rövid, megvalósítható tanácsot. Ne játssz szerepet túlzóan, ne használj fölösleges emojikat vagy sablonos hosszú bevezetést.

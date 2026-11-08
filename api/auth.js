@@ -1,3 +1,10 @@
+/*
+A bejelentkezés HTTP-végpontja.
+GET: munkamenet ellenőrzése; POST: belépés; DELETE: kijelentkezés.
+A jelszót a szerver ellenőrzi. A böngésző csak az eredményt és
+sikeres belépéskor egy munkamenet-cookie-t kap vissza.
+*/
+// Bejelentkezési végpont: a munkamenet ellenőrzését, létrehozását és lezárását kezeli.
 import {
   createSessionCookie,
   expiredSessionCookie,
