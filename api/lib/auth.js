@@ -1,16 +1,12 @@
-/*
-A belépés közös szabályai minden védett API számára.
-A munkamenetet aláírt cookie tárolja, nincs hozzá külön adatbázis.
-Az aláírás a módosítást ellenőrzi, nem titkosítja a tartalmat:
-ezért jelszót vagy API-kulcsot nem teszünk a cookie-ba.
-*/
-// Közös hitelesítési segéd: ellenőrzi a belépési adatokat, és aláírt munkamenet-cookie-t kezel.
+// Shared login helpers for the protected API routes.
+// The session is a signed cookie, so there is no database. The signature only detects changes
+// (the content is not encrypted), so a password or API key must never go into the cookie.
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 const COOKIE_NAME = "greenhouse_session";
 const SESSION_SECONDS = 8 * 60 * 60;
 
-// A jelszót és a cookie ellenőrzéséhez használt titkot csak szerverbeállításból olvassuk.
+// Credentials and the cookie secret come from the server settings only.
 function getAuthSettings() {
   const username = process.env.ADMIN_USERNAME;
   const password = process.env.ADMIN_PASSWORD;
@@ -23,16 +19,15 @@ function getAuthSettings() {
   return { username, password, sessionSecret };
 }
 
-// Az azonos hosszúságú hash-ek összehasonlítása csökkenti az időzítésből származó információszivárgást.
+// Comparing hashes of equal length avoids leaking information through timing.
 function secureEquals(left, right) {
-  // Így az összehasonlítás futási idejéből nem lehet következtetni a belépési adatokra.
   const leftHash = createHash("sha256").update(left).digest();
   const rightHash = createHash("sha256").update(right).digest();
   return timingSafeEqual(leftHash, rightHash);
 }
 
 function sign(payload, secret) {
-  // Ezzel az aláírással később észrevesszük, ha valaki átírta a cookie tartalmát.
+  // The signature lets us notice if someone edited the cookie.
   return createHmac("sha256", secret).update(payload).digest("base64url");
 }
 
@@ -50,7 +45,7 @@ export function isAuthenticated(req) {
   const [payload, signature, extra] = getCookie(req).split(".");
   if (!payload || !signature || extra) return false;
 
-  // Csak érvényes aláírású, még le nem járt munkamenetet fogadunk el.
+  // Accept only a valid signature and a session that has not expired.
   const expected = Buffer.from(sign(payload, settings.sessionSecret), "base64url");
   const supplied = Buffer.from(signature, "base64url");
   if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return false;
@@ -63,7 +58,7 @@ export function isAuthenticated(req) {
   }
 }
 
-// False esetén a hívónak vissza kell térnie, különben a védett művelet is lefuthatna.
+// Returns false after sending a 401, so the caller must return right away.
 export function requireAuthentication(req, res) {
   if (isAuthenticated(req)) return true;
   res.status(401).json({ error: "Bejelentkezés szükséges.", code: "authentication_required" });
@@ -85,9 +80,9 @@ export function verifyCredentials(username, password) {
   };
 }
 
-// A lejárati dátum ezredmásodperc, a Max-Age másodperc. Ezért kell az átváltás.
+// Expiry is stored in milliseconds but Max-Age is in seconds, so we convert.
 export function createSessionCookie(username, sessionSecret, req) {
-  // A cookie JavaScriptből nem olvasható, és nyolc óra után automatikusan lejár.
+  // HttpOnly cookie, it expires after eight hours.
   const payload = Buffer.from(JSON.stringify({
     user: username,
     expiresAt: Date.now() + SESSION_SECONDS * 1000

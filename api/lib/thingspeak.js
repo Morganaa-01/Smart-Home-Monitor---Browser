@@ -1,10 +1,5 @@
-/*
-Közös kapcsolat a ThingSpeak API-val.
-Itt áll össze a csatorna címe, az időszak és szükség esetén az olvasási kulcs.
-A felület és az AI ezt a segédet használja, ezért
-a hálózati és válaszformátum-hibákat egy helyen kezelhetjük.
-*/
-// Közös ThingSpeak-kapcsolat: összeállítja a lekérdezést, lekéri a rekordokat és egységes hibát ad vissza.
+// Shared ThingSpeak client: builds the URL, fetches the feeds and throws one kind of error.
+// The dashboard and the AI both use it, so network and format errors are handled in one place.
 const DEFAULT_CHANNEL_ID = "3560978";
 const MAX_RESULTS = 8000;
 
@@ -18,7 +13,7 @@ export class ThingSpeakError extends Error {
 }
 
 export async function fetchThingSpeakFeeds({ results = 60, days, start, end } = {}) {
-  // A csatorna adatait a szerver környezeti változóiból olvassuk ki.
+  // Channel settings come from the server environment variables.
   const channelId = process.env.THINGSPEAK_CHANNEL_ID || DEFAULT_CHANNEL_ID;
   const readApiKey = process.env.THINGSPEAK_READ_API_KEY;
 
@@ -26,7 +21,7 @@ export async function fetchThingSpeakFeeds({ results = 60, days, start, end } = 
   if (readApiKey) url.searchParams.set("api_key", readApiKey);
   url.searchParams.set("timezone", "UTC");
 
-  // Egy lekérdezés időintervallumot, napok számát vagy rekordszámot kap.
+  // A request has a time range, a number of days or a number of records.
   if (start && end) {
     url.searchParams.set("start", start);
     url.searchParams.set("end", end);
@@ -44,7 +39,7 @@ export async function fetchThingSpeakFeeds({ results = 60, days, start, end } = 
 
   let response;
   try {
-    // Az API-kulcs szerveroldalon marad, nem kerül ki a böngészőbe.
+    // The API key stays on the server and never reaches the browser.
     response = await fetch(url, { cache: "no-store" });
   } catch (error) {
     throw new ThingSpeakError(

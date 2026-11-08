@@ -1,10 +1,8 @@
-/*
-Builds a real PDF file from the currently loaded measurement, without external libraries.
-The report is drawn on a canvas (so Hungarian letters such as ő and ű render correctly),
-then the image is wrapped into a single-page A4 PDF.
-The file can be downloaded or sent by email through the system share sheet.
-We work on a copy, so the automatic refresh cannot change a report being generated.
-*/
+// PDF report: makes a real PDF file from the loaded measurement, without any library.
+// Each page is drawn on a canvas (so letters like ő and ű look right) and put into an A4 PDF as an image.
+// Page 1 is the measurement table, page 2 is the history charts (if they are loaded).
+// The file can be downloaded or sent by email through the share sheet of the system.
+// We work on a copy of the data, so the automatic refresh cannot change a report that is being made.
 window.GreenhouseReport = (() => {
   const fields = [
     ["field1", "Hőmérséklet", "BME280", "°C", 1],

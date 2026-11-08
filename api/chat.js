@@ -1,11 +1,7 @@
-/*
-A chat útja: belépés és bemenet ellenőrzése,
-mérések lekérése, majd a válasz összeállítása.
-Az AI csak a szerver által engedélyezett eszközöket használhat.
-A számításokat lehetőleg a kód végzi; a modell értelmezi az eredményt
-és röviden megfogalmazza. A legutóbbi esőre külön válaszág van.
-*/
-// Chat API: ellenőrzi a belépést, szükség esetén adatot kér le, majd az AI-val megfogalmaztatja a választ.
+// Chat endpoint: checks the login and the input, loads measurements when needed,
+// then lets the AI word the answer. The AI can only use the tools the server allows.
+// The code does the calculations where it can, the model explains the result.
+// The "last rain" question has its own branch with a fixed reply.
 import { GREENHOUSE_TOOLS, runGreenhouseTool } from "./lib/greenhouse-tools.js";
 import { GREENHOUSE_INSTRUCTIONS, GREENHOUSE_MODEL } from "./lib/greenhouse-prompt.js";
 import { requireAuthentication } from "./lib/auth.js";
@@ -15,7 +11,7 @@ const MAX_TOOL_ROUNDS = 4;
 const MAX_OPENAI_ATTEMPTS = 3;
 
 async function fetchOpenAIWithRetry(apiKey, body) {
-  // Hálózati hiba vagy átmeneti OpenAI-túlterhelés esetén várunk, majd újrapróbáljuk a kérést.
+  // Wait and retry on a network error or when OpenAI is temporarily overloaded.
   for (let attempt = 0; attempt < MAX_OPENAI_ATTEMPTS; attempt += 1) {
     try {
       const response = await fetch(OPENAI_RESPONSES_URL, {
@@ -30,7 +26,7 @@ async function fetchOpenAIWithRetry(apiKey, body) {
       if (response.status === 503 && attempt < MAX_OPENAI_ATTEMPTS - 1) {
         const errorBody = await response.clone().json().catch(() => ({}));
         if (errorBody.error?.code === "server_is_overloaded") {
-          // Ha a szolgáltatás megad várakozási időt, azt követjük; ennek hiányában fokozatosan várunk többet.
+          // Use the wait time from the service if there is one, otherwise wait longer each time.
           const retryAfter = Number(response.headers.get("retry-after"));
           const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
             ? Math.min(retryAfter * 1000, 5000)
@@ -54,7 +50,7 @@ async function fetchOpenAIWithRetry(apiKey, body) {
 }
 
 function isHistoricalDataQuestion(message) {
-  // Előzménykérdésnél előre lekérjük a ThingSpeak-adatokat, hogy az AI ne becsülje meg őket.
+  // For history questions we fetch the ThingSpeak data first, so the AI does not guess.
   if (isLastRainQuestion(message)) return true;
   if (extractBudapestDates(message).length > 0) return true;
   const asksAboutTime = /tegnap\w*|tegnapelőtt\w*|ma\w*|elmúlt\w*|utolsó\w*|trend\w*|átlag\w*|minimum\w*|maximum\w*|változás\w*|összehasonlít\w*|időbeli\w*/i.test(message);
@@ -63,13 +59,13 @@ function isHistoricalDataQuestion(message) {
 }
 
 function isLastRainQuestion(message) {
-  // Az ékezeteket egységesítjük, és a teljes üzenetet vizsgáljuk, ezért a köszönés nem zavar be.
+  // Remove accents and check the whole message, so a greeting does not matter.
   const normalized = message.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
   return /mikor\w*|utoljara\w*|legutobb\w*/i.test(normalized) && /eso\w*|rain\w*/i.test(normalized);
 }
 
 export function extractBudapestDates(message) {
-  // A kérdésben megadott magyar hónapnevekből konkrét budapesti naptári napokat készítünk.
+  // Turn the Hungarian month names in the question into calendar days (Budapest time).
   const normalized = message.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
   const monthNumbers = {
     januar: "01", februar: "02", marcius: "03", aprilis: "04", majus: "05", junius: "06",
@@ -90,7 +86,7 @@ export function extractBudapestDates(message) {
 }
 
 async function getRequestedDaySummaries(dates) {
-  // Minden megnevezett napra külön kérdezünk le, köztes napokat nem veszünk bele.
+  // Query each named day on its own. Days in between are not included.
   const days = await Promise.all(dates.map(async (date) => {
     const result = await runGreenhouseTool("get_sensor_history", {
       hours: null,
@@ -122,7 +118,7 @@ async function getRequestedDaySummaries(dates) {
 }
 
 async function getLastRainSummary() {
-  // Az utolsó 30 napból keressük ki a legfrissebb aktív esőjelzést.
+  // Look for the most recent rain signal in the last 30 days.
   const result = await runGreenhouseTool("get_sensor_history", {
     hours: 720,
     start_date: null,
@@ -145,9 +141,9 @@ async function getLastRainSummary() {
   };
 }
 
-// Ezt a választ a kód fogalmazza meg, ezért a prompt átírása ezt az ágat nem változtatja meg.
+// The code writes this reply, so changing the prompt does not affect this branch.
 function formatLastRainReply(summary) {
-  // Ezt a rövid választ a szerver állítja össze a mérési adatokból, nem a modell találja ki.
+  // The server builds this short reply from the measurements, the model does not make it up.
   if (!summary.total_samples) {
     return "A lekért időszakban nincs esőérzékelő-adat.";
   }
@@ -168,7 +164,7 @@ function formatLastRainReply(summary) {
     return "Az érzékelő legutóbb " + formatDateTime(summary.last_active_at_budapest) + "-kor jelzett esőt. A csapadék mennyiségét nem méri.";
   }
 
-  // Az első és utolsó aktív minta közti időt percben jelenítjük meg.
+  // Time between the first and the last active sample, in minutes.
   const durationMinutes = Math.max(1, Math.round((Date.parse(event.last_active_at_budapest) - Date.parse(event.started_at_budapest)) / 60000));
   const days = Math.floor(durationMinutes / 1440);
   const hours = Math.floor((durationMinutes % 1440) / 60);
@@ -186,9 +182,8 @@ function formatLastRainReply(summary) {
   return "Az érzékelő " + startTime + " és " + endTime + " között jelzett esőt, körülbelül " + duration + " hosszan. A csapadék mennyiségét nem méri.";
 }
 
-// Csak felhasználói és asszisztensi szöveget fogadunk el. A kliens nem adhat rendszerutasítást vagy eszközeredményt.
+// Only user and assistant text is accepted. The client cannot send system instructions or tool results.
 function sanitizeConversation(conversation) {
-  // A böngésző csak a szerepet és a szöveget küldheti; utasítást vagy eszközeredményt nem fogadunk el előzményként.
   if (!Array.isArray(conversation)) return [];
 
   return conversation
@@ -200,7 +195,7 @@ function sanitizeConversation(conversation) {
 }
 
 function buildUserInput(message, sensorContext, historyResult = null, conversation = []) {
-  // A modell a kérdés mellett megkapja a felületen látható és a külön lekért adatokat is.
+  // The model gets the question plus the data shown on the page and the data fetched separately.
   const context = JSON.stringify(sensorContext ?? {}, null, 2);
   const now = new Date();
   const budapestNow = new Intl.DateTimeFormat("hu-HU", {
@@ -222,7 +217,7 @@ function buildUserInput(message, sensorContext, historyResult = null, conversati
 }
 
 async function requestModel(apiKey, input, allowToolCalls = true) {
-  // A modell, az utasítások és az engedélyezett adatlekérő eszközök itt találkoznak.
+  // Model, instructions and the allowed data tools come together here.
   const response = await fetchOpenAIWithRetry(apiKey, {
     model: GREENHOUSE_MODEL,
     service_tier: "default",
@@ -259,9 +254,9 @@ async function requestModel(apiKey, input, allowToolCalls = true) {
   return data;
 }
 
-// A call_id köti össze az eszközkérést az eredményével.
+// call_id links a tool request to its result.
 async function executeToolCall(toolCall) {
-  // Az asszisztens kérésére csak olvasunk az adatokból, eszközállapotot nem módosítunk.
+  // The tools only read data, they never change a device.
   try {
     const args = JSON.parse(toolCall.arguments || "{}");
     const result = await runGreenhouseTool(toolCall.name, args);
@@ -283,7 +278,7 @@ async function executeToolCall(toolCall) {
   }
 }
 
-// A körök korlátja megakadályozza a végtelen eszközhívási láncot.
+// The round limit stops endless tool-call loops.
 async function runAssistantTurn(apiKey, input, allowToolCalls) {
   let response = await requestModel(apiKey, input, allowToolCalls);
   let round = 0;
@@ -293,10 +288,10 @@ async function runAssistantTurn(apiKey, input, allowToolCalls) {
     if (toolCalls.length === 0) return response;
     if (round >= MAX_TOOL_ROUNDS) break;
 
-    // Több adatlekérést párhuzamosan is végrehajthatunk, mert mindegyik csak olvas a csatornából.
+    // Several lookups can run in parallel because they only read.
     const toolOutputs = await Promise.all(toolCalls.map(executeToolCall));
 
-    // A modell korábbi eszközhívásait is visszaadjuk, hogy az eredményt hozzá tudja kötni.
+    // Send the earlier tool calls back too, so the model can match them with the results.
     input.push(...response.output, ...toolOutputs);
     response = await requestModel(apiKey, input, allowToolCalls);
     round += 1;
@@ -308,7 +303,7 @@ async function runAssistantTurn(apiKey, input, allowToolCalls) {
   throw error;
 }
 
-// Csak a megjeleníthető szöveget vesszük ki, a belső eszközhívásokat nem.
+// Take only the text to show, not the internal tool calls.
 function extractReply(response) {
   return (response.output || [])
     .flatMap((item) => item.content || [])
@@ -337,7 +332,7 @@ function userFacingError(error) {
 }
 
 export default async function handler(req, res) {
-  // A chat csak aktív munkamenettel és POST kéréssel használható.
+  // The chat needs an active session and a POST request.
   if (!requireAuthentication(req, res)) return;
 
   if (req.method !== "POST") {
@@ -362,11 +357,14 @@ export default async function handler(req, res) {
     if (isHistoricalDataQuestion(message)) {
       try {
         const requestedDates = extractBudapestDates(message);
-        historyResult = isLastRainQuestion(message)
-          ? await getLastRainSummary()
-          : requestedDates.length
-          ? await getRequestedDaySummaries(requestedDates)
-          : await runGreenhouseTool("get_sensor_history", { hours: 48, start_date: null, end_date: null, field: "all" });
+        if (isLastRainQuestion(message)) {
+          historyResult = await getLastRainSummary();
+        } else if (requestedDates.length > 0) {
+          historyResult = await getRequestedDaySummaries(requestedDates);
+        } else {
+          // No date in the question: use the last 48 hours.
+          historyResult = await runGreenhouseTool("get_sensor_history", { hours: 48, start_date: null, end_date: null, field: "all" });
+        }
       } catch (error) {
         historyResult = {
           error: error.message || "A mérési előzmények lekérése nem sikerült.",
@@ -379,7 +377,7 @@ export default async function handler(req, res) {
       if (historyResult?.error) {
         return res.status(502).json({ error: userFacingError(historyResult), code: historyResult.code });
       }
-      // Ennél a kérdésnél a dátum és az időtartam közvetlenül a ThingSpeak-adatokból származik.
+      // For this question the date and duration come straight from the ThingSpeak data.
       return res.status(200).json({ reply: formatLastRainReply(historyResult) });
     }
 

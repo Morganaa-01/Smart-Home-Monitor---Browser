@@ -1,11 +1,6 @@
-/*
-Helyi indítás: npm.cmd start
-Az Express kiszolgálja a public mappát, az API-kéréseket pedig
-ugyanazok a kezelők kapják meg, amelyek Vercelen is futnak.
-Így nem kell külön helyi másolatot fenntartani az API működéséből.
-Ez CommonJS-fájl; az API-modulokat dinamikus import tölti be.
-*/
-// Helyi fejlesztőszerver: kiszolgálja a public felületet, és a Vercel API-kezelőire irányítja a kéréseket.
+// Local development server: serves the public folder and passes the API requests to the same
+// handlers that run on Vercel, so there is no separate local copy of the API.
+// Start it with: npm.cmd start. This is a CommonJS file, so the API modules are loaded with dynamic import.
 const express = require("express");
 const path = require("path");
 require("dotenv").config();
@@ -13,7 +8,7 @@ require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Kiszolgáljuk az irányítópult fájljait, és fogadjuk a chat JSON-kéréseit.
+// Serve the dashboard files and accept the JSON requests of the chat.
 app.use(express.json({ limit: "20kb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -33,7 +28,7 @@ app.all("/api/auth", async (req, res) => {
 
 app.post("/api/chat", async (req, res) => {
   try {
-    // Helyben és a tárhelyen is ugyanazt az API-kezelőt használjuk.
+    // Use the same API handler locally and on the host.
     const { default: chatHandler } = await import("./api/chat.js");
     return chatHandler(req, res);
   } catch (error) {

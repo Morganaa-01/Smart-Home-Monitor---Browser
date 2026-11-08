@@ -1,10 +1,6 @@
-/*
-A grafikonok és kártyák szerveroldali adatvégpontja.
-A böngésző szűrési paramétereit ellenőrizzük az adatlekérés előtt.
-A dátummező nem tartalmaz időzónát, ezért a szerver alakítja
-a választott helyi időt UTC-re, a számítógép helyétől függetlenül.
-*/
-// ThingSpeak API-végpont: belépés után friss vagy történeti méréseket ad vissza a megadott időszakból.
+// Server endpoint for the charts and cards.
+// The filters from the browser are checked before the ThingSpeak request. The date inputs have no
+// time zone, so the server converts the chosen Budapest time to UTC.
 import { fetchThingSpeakFeeds, ThingSpeakError } from "./lib/thingspeak.js";
 import { requireAuthentication } from "./lib/auth.js";
 
@@ -20,7 +16,7 @@ const BUDAPEST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23"
 });
 
-// A datetime-local érték nem tartalmaz zónát, ezért Budapest időzónáját számoljuk hozzá.
+// datetime-local has no time zone, so we add the Budapest offset here.
 function parseBudapestDateTime(value) {
   if (typeof value !== "string") return null;
   const match = BUDAPEST_DATE_TIME_PATTERN.exec(value);
@@ -36,7 +32,7 @@ function parseBudapestDateTime(value) {
     || calendarCheck.getUTCDate() !== day) return null;
 
   let timestamp = localAsUtc;
-  // A helyi idő UTC-eltolása évszaktól függhet, ezért újraszámoljuk, amíg egyeznek az órarészek.
+  // The UTC offset depends on the season, so repeat until the hour parts match.
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const parts = Object.fromEntries(BUDAPEST_DATE_TIME_FORMATTER.formatToParts(new Date(timestamp))
       .filter(({ type }) => type !== "literal")
@@ -53,7 +49,7 @@ function parseBudapestDateTime(value) {
   const resolved = Object.fromEntries(BUDAPEST_DATE_TIME_FORMATTER.formatToParts(new Date(timestamp))
     .filter(({ type }) => type !== "literal")
     .map(({ type, value: part }) => [type, part]));
-  // Az óraátálláskor nem létező helyi időt is kiszűri ez a visszaellenőrzés.
+  // This final check also rejects local times that do not exist when the clocks change.
   if (Number(resolved.year) !== year
     || Number(resolved.month) !== month
     || Number(resolved.day) !== day
@@ -64,15 +60,15 @@ function parseBudapestDateTime(value) {
 }
 
 export default async function handler(req, res) {
-  // A mérési előzményeket csak bejelentkezett felhasználó kérheti le.
+  // Only a logged-in user can read the measurement history.
   if (!requireAuthentication(req, res)) return;
 
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed. Use GET." });
   }
 
-  // Ellenőrizzük a lekérdezés paramétereit, hogy hibás időszaknál érthető választ adjunk.
-  // Háromféle időszakot támogatunk: utolsó minták, utolsó napok vagy egyedi dátumhatárok.
+  // Validate the query, so a bad period gets a clear error message.
+  // Three kinds of period: latest samples, latest days or a custom date range.
   const hasDays = req.query?.days !== undefined;
   const hasStart = req.query?.start !== undefined;
   const hasEnd = req.query?.end !== undefined;
