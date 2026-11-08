@@ -1224,11 +1224,20 @@ function initializeDashboard() {
   setupSummaryEditor();
   setupMetricEditor();
   setupChartEditor();
+  // A PDF-modul külön fájl; ha egy régi gyorsítótárazott változat miatt hiányzik, érthető üzenetet adunk.
+  const getReportModule = () => {
+    if (!state.lastEntry) throw new Error("Még nincs exportálható mérés.");
+    const report = window.GreenhouseReport;
+    if (!report || typeof report.download !== "function" || typeof report.sendByEmail !== "function") {
+      throw new Error("A PDF-készítő még nem töltődött be. Frissítsd az oldalt (Ctrl+F5), majd próbáld újra.");
+    }
+    return report;
+  };
   $("exportPdfBtn").addEventListener("click", () => {
     try {
       // A jelentés a betöltött adatokról készül, a demókapcsolók nem írják felül az eszközállapotokat.
-      if (!state.lastEntry) throw new Error("Még nincs exportálható mérés.");
-      const name = window.GreenhouseReport.download(state.lastEntry);
+      const report = getReportModule();
+      const name = report.download(state.lastEntry);
       addActivityLog(`A mérési jelentés PDF-ként letöltődött (${name}).`);
     } catch (error) {
       addActivityLog(error.message, "error");
@@ -1237,8 +1246,8 @@ function initializeDashboard() {
   });
   $("emailPdfBtn").addEventListener("click", async () => {
     try {
-      if (!state.lastEntry) throw new Error("Még nincs exportálható mérés.");
-      const result = await window.GreenhouseReport.sendByEmail(state.lastEntry);
+      const report = getReportModule();
+      const result = await report.sendByEmail(state.lastEntry);
       if (result.method === "share") {
         addActivityLog("A PDF-jelentés átadva a megosztási ablaknak.");
       } else if (result.method === "mailto") {
