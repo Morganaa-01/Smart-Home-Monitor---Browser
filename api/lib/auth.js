@@ -26,11 +26,13 @@ function secureEquals(left, right) {
   return timingSafeEqual(leftHash, rightHash);
 }
 
+// HMAC with the server secret, so only the server can make a valid cookie.
 function sign(payload, secret) {
   // The signature lets us notice if someone edited the cookie.
   return createHmac("sha256", secret).update(payload).digest("base64url");
 }
 
+// Tiny parser for one cookie, so we do not need an extra package for it.
 function getCookie(req) {
   const cookies = req.headers.cookie || "";
   const item = cookies.split(";").map((part) => part.trim())
@@ -38,6 +40,7 @@ function getCookie(req) {
   return item ? item.slice(COOKIE_NAME.length + 1) : "";
 }
 
+// The signature is checked first and the content is read only after that, so unsigned data is never parsed.
 export function isAuthenticated(req) {
   const settings = getAuthSettings();
   if (!settings) return false;
@@ -65,6 +68,7 @@ export function requireAuthentication(req, res) {
   return false;
 }
 
+// Both comparisons always run (no early return), so the response time does not show which one was wrong.
 export function verifyCredentials(username, password) {
   const settings = getAuthSettings();
   if (!settings) return { configured: false, valid: false };
@@ -95,6 +99,7 @@ export function createSessionCookie(username, sessionSecret, req) {
   return `${COOKIE_NAME}=${payload}.${signature}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_SECONDS}${secureFlag}`;
 }
 
+// Logout: the same cookie with Max-Age=0, the browser deletes it.
 export function expiredSessionCookie() {
   return `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`;
 }
