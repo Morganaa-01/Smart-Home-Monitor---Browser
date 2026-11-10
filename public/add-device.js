@@ -140,7 +140,7 @@ function renderDevices() {
 
   if (devices.length === 0) {
     const emptyMessage = document.createElement("p");
-    emptyMessage.className = "device-list-empty muted";
+    emptyMessage.className = "device-list-empty text-secondary";
     emptyMessage.textContent = "Még nincs felvett eszköz.";
     deviceList.appendChild(emptyMessage);
     return;
@@ -154,9 +154,9 @@ function renderDevices() {
     const editButton = document.createElement("button");
     const deleteButton = document.createElement("button");
 
-    item.className = "saved-device device-list-item";
-    details.className = "device-tile-details";
-    actions.className = "device-actions";
+    item.className = "card saved-device device-list-item";
+    details.className = "card-body device-tile-details";
+    actions.className = "card-footer d-flex gap-2 device-actions";
     title.textContent = device.name || "Névtelen eszköz";
 
     // Az elmentett adatokat egyszerű szövegként tesszük az oldalra.
@@ -171,12 +171,12 @@ function renderDevices() {
     }
 
     editButton.type = "button";
-    editButton.className = "button secondary";
+    editButton.className = "btn btn-sm";
     editButton.textContent = "Szerkesztés";
     editButton.addEventListener("click", () => editDevice(index));
 
     deleteButton.type = "button";
-    deleteButton.className = "button danger-small";
+    deleteButton.className = "btn btn-sm btn-outline-danger";
     deleteButton.textContent = "Törlés";
     deleteButton.addEventListener("click", () => deleteDevice(index));
 
@@ -285,44 +285,26 @@ cancelEditBtn.addEventListener("click", resetForm);
 // A világos/sötét téma beállítása. A téma a 'dark' osztály a <html> elemen, és a localStorage-ban is megmarad.
 // Ugyanaz a kód van a script.js-ben, hogy a két oldal témája mindig egyezzen. TODO: közös fájlba lehetne tenni.
 function setupTheme() {
-  // A főoldallal közös beállítást használjuk, így oldalváltáskor a téma nem változik meg.
-  const storedTheme = localStorage.getItem("greenhouse-theme");
-  if (storedTheme === "dark") document.documentElement.classList.add("dark");
-  themeToggle.setAttribute("aria-pressed", String(document.documentElement.classList.contains("dark")));
+  // A főoldallal közös beállítást használjuk (<html data-bs-theme>), így az oldalváltás nem vált témát.
+  const root = document.documentElement;
+  themeToggle.setAttribute("aria-pressed", String(root.getAttribute("data-bs-theme") === "dark"));
 
   themeToggle.addEventListener("click", () => {
-    document.documentElement.classList.toggle("dark");
-
-    const theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
+    const theme = root.getAttribute("data-bs-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-bs-theme", theme);
     localStorage.setItem("greenhouse-theme", theme);
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#121813" : "#f3f6f1");
     themeToggle.setAttribute("aria-pressed", String(theme === "dark"));
   });
 }
 
-// A felső menü nyitása/zárása kis képernyőn. Ugyanaz a kód, mint a script.js-ben.
 function setupNavigation() {
-  const menuButton = document.getElementById("menuToggle");
-  const menuIcon = menuButton.querySelector(".material-symbols-rounded");
+  // A menü lenyitását a Tabler (Bootstrap) kezeli; linkre kattintva mobilon csak becsukjuk.
   const navLinks = document.getElementById("navLinks");
-
-  menuButton.addEventListener("click", () => {
-    const isOpen = navLinks.classList.toggle("open");
-    menuButton.setAttribute("aria-expanded", String(isOpen));
-    menuButton.setAttribute("aria-label", isOpen ? "Menü bezárása" : "Menü megnyitása");
-    menuIcon.textContent = isOpen ? "close" : "menu";
-  });
-
   navLinks.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => {
-    navLinks.classList.remove("open");
-    menuButton.setAttribute("aria-expanded", "false");
-    menuButton.setAttribute("aria-label", "Menü megnyitása");
-    menuIcon.textContent = "menu";
+    navLinks.classList.remove("show");
   }));
 }
 
-// A kijelentkezés gomb: DELETE kérést küld a /api/auth címre, a szerver pedig törli a sütit,
-// mert a JavaScript az HttpOnly sütit nem tudja közvetlenül törölni.
 function setupLogout() {
   const logoutButton = document.getElementById("logoutBtn");
   if (!logoutButton) return;
