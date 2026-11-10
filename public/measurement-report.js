@@ -328,12 +328,10 @@ window.GreenhouseReport = (() => {
     return file.name;
   }
 
-  /*
-  Email sending: where the browser supports it (Windows, Android, iOS), the system
-  share sheet opens and the PDF is attached in the mail app.
-  Elsewhere we download the PDF and open the mail client with a prefilled subject;
-  a mailto: link cannot carry attachments, so there the file has to be attached by hand.
-  */
+  // Email sending: where the browser supports it (Windows, Android, iOS), the system
+  // share sheet opens and the PDF is attached in the mail app.
+  // Elsewhere we download the PDF and open the mail client with a prefilled subject;
+  // a mailto: link cannot carry attachments, so there the file has to be attached by hand.
   async function sendByEmail(entry, options) {
     const file = await createFile(entry, options);
     const message = "Csatolva küldöm az Okos Növényház aktuális mérési jelentését.";
