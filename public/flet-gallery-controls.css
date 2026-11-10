@@ -1,15 +1,15 @@
 /*
- * The look of the buttons and input controls is based on these Flet Studio examples.
- * Here they are adapted to the colours and the layout of the app:
- * Buttons: https://studio.flet.dev/gallery/buttons
- * Autocomplete: https://studio.flet.dev/gallery/input/autocomplete
- * Cards: https://studio.flet.dev/gallery/layout/card
- * Card content example: https://studio.flet.dev/gallery/layout/card/example/controls/material/card/music_info
- * Switches: https://studio.flet.dev/gallery/input/switch
- * Switch example: https://studio.flet.dev/gallery/input/switch/example/controls/material/switch/switch
- * Line charts: https://studio.flet.dev/gallery/charts
- * Line chart with custom axes: https://studio.flet.dev/gallery/charts/linechart
- * The colour roles follow the Flet Material theme: https://flet.dev/docs/cookbook/colors/
+ * A gombok és a beviteli elemek kinézetét ezek a Flet Studio példák ihlették.
+ * Itt az alkalmazás saját színeihez és elrendezéséhez igazítjuk őket:
+ * Gombok: https://studio.flet.dev/gallery/buttons
+ * Automatikus kiegészítés: https://studio.flet.dev/gallery/input/autocomplete
+ * Kártyák: https://studio.flet.dev/gallery/layout/card
+ * Kártyatartalom-példa: https://studio.flet.dev/gallery/layout/card/example/controls/material/card/music_info
+ * Kapcsolók: https://studio.flet.dev/gallery/input/switch
+ * Kapcsolópélda: https://studio.flet.dev/gallery/input/switch/example/controls/material/switch/switch
+ * Vonaldiagramok: https://studio.flet.dev/gallery/charts
+ * Vonaldiagram egyedi tengelyekkel: https://studio.flet.dev/gallery/charts/linechart
+ * A színek szerepe a Flet Material témáját követi: https://flet.dev/docs/cookbook/colors/
  * Ez a CSS a meglévő HTML-alkalmazásban valósítja meg a hasznos megjelenési mintákat.
  */
 :root {
@@ -40,7 +40,7 @@ body.dark {
   --flet-chart-value: #b0e4b5;
 }
 
-/* Autocomplete style based on the Flet example, adapted to the weather city search. */
+/* Automatikus kiegészítés a Flet példája alapján, az időjárás településkeresőjéhez igazítva. */
 .weather-autocomplete {
   position: relative;
   display: block;
@@ -86,7 +86,7 @@ body.dark {
   transform: none;
 }
 
-/* Card style based on the Flet card example, used for the measurement and device cards. */
+/* Kártyák a Flet kártyapéldája alapján: ezek a mérési és az eszközkártyák. */
 .greenhouse-grid .sensor-card,
 .greenhouse-devices .device-item {
   border: 1px solid color-mix(in srgb, var(--border-color) 78%, var(--primary-color));
@@ -269,7 +269,7 @@ body.dark {
   outline-offset: 3px;
 }
 
-/* Filled and outlined button styles based on Flet. */
+/* Kitöltött és körvonalas gombok a Flet mintája alapján. */
 .button,
 button {
   min-height: 44px;
@@ -340,7 +340,7 @@ button:disabled,
   cursor: wait;
 }
 
-/* Line chart style based on Flet: dark background, axes, grid and a highlighted series. */
+/* Vonaldiagram a Flet mintája alapján: sötét háttér, tengelyek, rács és kiemelt adatsor. */
 .thingspeak-chart {
   min-height: 270px;
   height: 270px;
@@ -556,7 +556,7 @@ button:disabled,
   }
 }
 
-/* Look based on the Flet gallery cards, buttons and charts, adapted to this project. */
+/* A Flet galéria kártyáira, gombjaira és grafikonjaira épülő, a projekthez igazított megjelenés. */
 .site-header {
   padding: 1rem clamp(1rem, 4vw, 2.5rem) 0;
 }
@@ -876,7 +876,7 @@ button:disabled,
   }
 }
 
-/* The menu button has the same size as the other round icons. */
+/* A menügomb mérete megegyezik a többi kör alakú ikonéval. */
 .navbar .menu-toggle {
   display: none;
   flex: 0 0 44px;
@@ -1094,7 +1094,7 @@ button:disabled,
   }
 }
 
-/* Subtle motion based on the Flet implicit animation and hover examples. */
+/* Finom mozgás a Flet animációs és hover példái alapján. */
 :root {
   --ui-motion-fast: 150ms;
   --ui-motion-standard: 220ms;
@@ -1714,7 +1714,7 @@ body.homepage-editing .chart-add-tile {
   }
 }
 
-/* Dialog based on the Flet AlertDialog (Dialogs in the gallery): rounded card, title, text and actions on the right. */
+/* Párbeszédablak a Flet AlertDialog mintája alapján (galéria, Dialogs): lekerekített kártya, cím, szöveg, jobbra a gombok. */
 .app-dialog {
   width: min(92vw, 420px);
   padding: 0;

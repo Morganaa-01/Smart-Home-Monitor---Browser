@@ -1,5 +1,8 @@
-// Login endpoint: GET checks the session, POST logs in, DELETE logs out.
-// The password is checked on the server only. The browser just gets a session cookie back.
+// Bejelentkezési végpont (/api/auth). Három dolgot tud:
+//   GET    - megmondja, hogy a felhasználó be van-e jelentkezve,
+//   POST   - bejelentkezteti (ellenőrzi a nevet és a jelszót), és munkamenet-sütit ad,
+//   DELETE - kijelentkezteti (törli a sütit).
+// A jelszót kizárólag a szerver ellenőrzi. A böngésző csak az eredményt és egy munkamenet-sütit kap vissza.
 import {
   createSessionCookie,
   expiredSessionCookie,
@@ -7,10 +10,12 @@ import {
   verifyCredentials
 } from "./lib/auth.js";
 
+// Ez a függvény kezeli a bejelentkezéssel kapcsolatos kéréseket.
+// req = a beérkező kérés, res = a válasz, amit visszaküldünk a böngészőnek.
 export default function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
-  // GET returns the session state, DELETE logs out.
+  // GET: visszaadja, hogy be van-e jelentkezve a felhasználó. DELETE: kijelentkezés.
   if (req.method === "GET") {
     const settings = verifyCredentials("", "");
     if (!settings.configured) {
@@ -29,7 +34,7 @@ export default function handler(req, res) {
     return res.status(405).json({ error: "Nem támogatott kérés." });
   }
 
-  // POST: check the credentials and send the cookie back if they are correct.
+  // POST: ellenőrizzük a belépési adatokat, és ha helyesek, visszaküldjük a munkamenet-sütit.
   const username = typeof req.body?.username === "string" ? req.body.username : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   if (!username || !password || username.length > 120 || password.length > 200) {
