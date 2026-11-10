@@ -1,0 +1,277 @@
+/*
+  Projekt-specifikus kiegészítések a Tabler stíluslap fölé.
+  Csak azt tartalmazza, amit a Tabler nem ad kész: rácsok, a dinamikusan
+  kirajzolt elemek (szerkesztőlista, grafikon-csempe, chat, napló, javaslatlista).
+  Színekhez és méretekhez a Tabler (Bootstrap) CSS-változóit használja,
+  így a világos és sötét téma automatikusan működik.
+*/
+
+/* ===== Színséma: a Tabler zöldje az elsődleges szín (a növényházhoz illik) ===== */
+:root,
+[data-bs-theme="light"],
+[data-bs-theme="dark"] {
+  --tblr-primary: #2fb344;
+  --tblr-primary-rgb: 47, 179, 68;
+  --tblr-primary-fg: #ffffff;
+  --tblr-primary-darken: #2a9f3d;
+  --tblr-primary-lt: rgba(47, 179, 68, 0.1);
+  --tblr-primary-lt-rgb: 47, 179, 68;
+  --tblr-link-color: #2a9f3d;
+  --tblr-link-color-rgb: 42, 159, 61;
+}
+
+/* ===== Alapok ===== */
+.material-symbols-rounded {
+  font-size: 1.25rem;
+  line-height: 1;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  color: var(--tblr-primary);
+}
+
+.unit {
+  margin-left: 0.25rem;
+  font-size: 0.5em;
+  font-weight: 500;
+  color: var(--tblr-secondary);
+}
+
+/* A sticky navigáció alá ne csússzon a horgonyra ugrott szekció. */
+[id] {
+  scroll-margin-top: 5rem;
+}
+
+/* ===== Mérőkártyák és beavatkozók rácsa ===== */
+.greenhouse-grid,
+.greenhouse-devices {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+/* ===== Legutóbbi adatcsomag sorai ===== */
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* ===== Szerkesztőlisták (húzható sorok) ===== */
+.summary-config-item {
+  cursor: grab;
+}
+
+.summary-config-item.is-dragging {
+  opacity: 0.5;
+}
+
+.summary-drag-icon {
+  color: var(--tblr-secondary);
+}
+
+.summary-config-label {
+  flex: 1 1 auto;
+}
+
+.summary-config-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+/* ===== Időjárás ===== */
+.weather-autocomplete {
+  position: relative;
+}
+
+.weather-suggestions {
+  position: absolute;
+  inset: calc(100% + 0.25rem) 0 auto 0;
+  z-index: 20;
+  max-height: 16rem;
+  overflow-y: auto;
+  box-shadow: var(--tblr-box-shadow-dropdown, 0 0.5rem 1rem rgba(0, 0, 0, 0.15));
+}
+
+.weather-suggestion {
+  cursor: pointer;
+}
+
+.weather-suggestion[aria-selected="true"] {
+  background: var(--tblr-primary-lt);
+}
+
+.weather-status.weather-error {
+  color: var(--tblr-danger);
+}
+
+/* ===== Chat ===== */
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  padding: 1rem;
+  border: 1px solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+  background: var(--tblr-bg-surface-secondary);
+}
+
+.chat-message {
+  max-width: 85%;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--tblr-border-radius);
+  background: var(--tblr-bg-surface);
+  border: 1px solid var(--tblr-border-color);
+}
+
+.chat-message p {
+  margin: 0.125rem 0 0;
+  white-space: pre-wrap;
+}
+
+.chat-message.user-message {
+  align-self: flex-end;
+  background: var(--tblr-primary-lt);
+  border-color: transparent;
+}
+
+.chat-message.system-message {
+  align-self: center;
+  color: var(--tblr-danger);
+}
+
+/* ===== Grafikonok ===== */
+.chart-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+  align-items: start;
+}
+
+.chart-tile {
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  padding: 0.5rem 0.5rem 0;
+  border: 1px solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+  background: var(--tblr-bg-surface);
+}
+
+.chart-remove-button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+}
+
+.thingspeak-chart {
+  min-width: 0;
+  min-height: 15rem;
+}
+
+.chart-add-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 15rem;
+  border: 2px dashed var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+}
+
+.chart-add-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0 1rem;
+  justify-content: center;
+}
+
+.chart-add-picker[hidden] {
+  display: none;
+}
+
+/* A szűrőgomb jelzi, ha egyéni időszak van érvényben. */
+.chart-filter-toggle.has-custom-range,
+.chart-filter-toggle.is-active {
+  border-color: var(--tblr-primary);
+  color: var(--tblr-primary);
+}
+
+/* ===== Eseménynapló ===== */
+.activity-log-entry {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--tblr-secondary);
+}
+
+.activity-log-entry time {
+  flex: 0 0 auto;
+  color: var(--tblr-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-log-success { border-left-color: var(--tblr-success); }
+.activity-log-error { border-left-color: var(--tblr-danger); }
+.activity-log-info { border-left-color: var(--tblr-primary); }
+
+.activity-log-empty {
+  padding: 0.5rem 0.75rem;
+  color: var(--tblr-secondary);
+}
+
+/* ===== Eszközök kezelése oldal ===== */
+.device-tile-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.device-tile-details p {
+  margin: 0 0 0.25rem;
+}
+
+.device-tile-details h4 {
+  margin-bottom: 0.5rem;
+}
+
+/* ===== Párbeszédablak (app-dialog.js): natív <dialog> Tabler színekkel ===== */
+.app-dialog {
+  width: min(28rem, calc(100vw - 2rem));
+  height: fit-content;
+  max-height: calc(100vh - 2rem);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius-lg, 0.5rem);
+  background: var(--tblr-bg-surface);
+  color: var(--tblr-body-color);
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.25);
+}
+
+.app-dialog::backdrop {
+  background: rgba(24, 36, 51, 0.5);
+}
+
+.app-dialog-body {
+  padding: 1.25rem 1.5rem;
+}
+
+.app-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
