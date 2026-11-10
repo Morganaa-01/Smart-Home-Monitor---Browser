@@ -111,7 +111,7 @@ function renderActivityLog() {
   list.replaceChildren();
   if (entries.length === 0) {
     const emptyItem = document.createElement("li");
-    emptyItem.className = "activity-log-empty";
+    emptyItem.className = "list-group-item activity-log-empty";
     emptyItem.textContent = "Még nincs rögzített esemény.";
     list.append(emptyItem);
     return;
@@ -128,7 +128,7 @@ function renderActivityLog() {
 
   entries.forEach((entry) => {
     const item = document.createElement("li");
-    item.className = `activity-log-entry activity-log-${entry.level || "info"}`;
+    item.className = `list-group-item activity-log-entry activity-log-${entry.level || "info"}`;
 
     const time = document.createElement("time");
     time.dateTime = entry.at;
@@ -196,7 +196,6 @@ const CHART_STATE_LABELS = {
 // A grafikonokhoz utoljára betöltött adatok (átméretezéskor ebből rajzoljuk újra), az átméretezés időzítője,
 // és hogy egyéni időszak van-e kiválasztva.
 let chartFeedsForResize = null;
-let chartResizeTimer = null;
 let chartCustomRangeActive = false;
 
 // Rövidítés: $('valami') = document.getElementById('valami'), így rövidebb a kód.
@@ -334,288 +333,116 @@ function downsampleReadings(readings, maxPoints = 480) {
   return sampled;
 }
 
-// ---------- Grafikonok és kurzorkövetés ----------
+// ---------- Grafikonok (ApexCharts) ----------
 
-// Kirajzolja az összes grafikont a kapott mérésekből. A grafikonokat SVG-ként rajzoljuk, ezért nincs szükség grafikonkönyvtárra.
-// Az SVG-t adatokból építjük, új szűrésnél tehát újra kell rajzolni, a felirat cseréje nem elég.
-// feeds = a ThingSpeakből kapott mérési rekordok listája.
+// Az ApexCharts a Tabler csomagjával érkezik (vendor/tabler/libs/apexcharts).
+// A példányokat itt tartjuk számon, hogy újrarajzolás előtt megszüntethessük őket.
+const apexCharts = new Map();
+
+// Rövid, budapesti idejű dátum a vízszintes tengely feliratához.
+const chartAxisDateFormat = new Intl.DateTimeFormat("hu-HU", {
+  timeZone: "Europe/Budapest",
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit"
+});
+
 function renderThingSpeakCharts(feeds) {
   chartFeedsForResize = feeds;
-  const svgNS = "http://www.w3.org/2000/svg";
+  const isDark = document.documentElement.getAttribute("data-bs-theme") === "dark";
+  const textColor = isDark ? "#9aa5b5" : "#667382";
+
+  // Az eltávolított grafikonok példányait is felszabadítjuk.
+  apexCharts.forEach((instance, element) => {
+    if (!element.isConnected) {
+      instance.destroy();
+      apexCharts.delete(element);
+    }
+  });
+
   document.querySelectorAll("[data-field-chart]").forEach((chart) => {
-    const chartWidth = Math.max(Math.round(chart.getBoundingClientRect().width) || 760, 320);
-    const field = "field" + chart.dataset.fieldChart;
+    const fieldNumber = chart.dataset.fieldChart;
+    const field = "field" + fieldNumber;
     const readings = feeds
       .map((feed) => ({
-        // A hiányzó mezőt NaN-ként kezeljük, hogy ne jelenjen meg hamis nullás mérésként.
         value: feed[field] === null || feed[field] === "" ? Number.NaN : Number(feed[field]),
         timestamp: feed.created_at
       }))
-      .filter((reading) => Number.isFinite(reading.value));
+      .filter((reading) => Number.isFinite(reading.value) && !Number.isNaN(new Date(reading.timestamp).getTime()));
     const plottedReadings = downsampleReadings(readings);
-    const fieldNumber = chart.dataset.fieldChart;
     const label = CHART_LABELS[fieldNumber] || chart.title;
     const unit = CHART_UNITS[fieldNumber] || "";
     const stateLabels = CHART_STATE_LABELS[fieldNumber];
-    const chartLabel = unit ? `${label} (${unit})` : stateLabels ? `${label} · állapot` : label;
     const formatChartValue = (value) => {
       if (stateLabels && (value === 0 || value === 1)) return stateLabels[value];
       const formattedValue = new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 2 }).format(value);
       return unit ? `${formattedValue} ${unit}` : formattedValue;
     };
-    // Létrehozzuk az SVG-vásznat, amire a grafikon minden eleme (cím, rács, vonal) kerül.
-    const svg = document.createElementNS(svgNS, "svg");
-    // A viewBox a kártya szélességéhez igazodik, így mobilon sem zsugorodnak össze a feliratok.
-    svg.setAttribute("viewBox", `0 0 ${chartWidth} 270`);
-    svg.setAttribute("preserveAspectRatio", "none");
-    svg.setAttribute("role", "img");
-    svg.setAttribute("aria-label", chartLabel);
 
-    // Segédfüggvény: egy szöveget (feliratot) tesz a grafikonra a megadott helyen.
-    const addText = (text, x, y, className, anchor = "start") => {
-      const element = document.createElementNS(svgNS, "text");
-      element.setAttribute("x", String(x));
-      element.setAttribute("y", String(y));
-      element.setAttribute("text-anchor", anchor);
-      element.setAttribute("class", className);
-      element.textContent = text;
-      svg.append(element);
-      return element;
+    // A régi példányt eldobjuk, és az elem tartalmát is töröljük.
+    apexCharts.get(chart)?.destroy();
+    apexCharts.delete(chart);
+    chart.replaceChildren();
+
+    if (!plottedReadings.length) {
+      const empty = document.createElement("p");
+      empty.className = "text-secondary text-center py-5 mb-0";
+      empty.textContent = "Nincs mérési adat";
+      chart.append(empty);
+      return;
+    }
+
+    const latest = formatChartValue(readings.at(-1).value);
+    const options = {
+      chart: {
+        type: "area",
+        height: 260,
+        fontFamily: "inherit",
+        foreColor: textColor,
+        parentHeightOffset: 0,
+        toolbar: { show: false },
+        animations: { enabled: false },
+        zoom: { enabled: false }
+      },
+      series: [{
+        name: label,
+        data: plottedReadings.map((reading) => ({ x: new Date(reading.timestamp).getTime(), y: reading.value }))
+      }],
+      title: { text: `${label}${unit ? ` (${unit})` : ""}`, style: { fontSize: "14px", fontWeight: 600 } },
+      subtitle: { text: `Legutóbbi: ${latest}` },
+      stroke: { curve: stateLabels ? "stepline" : "smooth", width: 2 },
+      fill: { type: "gradient", gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.05 } },
+      colors: ["#2fb344"],
+      dataLabels: { enabled: false },
+      grid: { borderColor: isDark ? "#2b3645" : "#e6e7e9", strokeDashArray: 4 },
+      xaxis: {
+        type: "datetime",
+        tooltip: { enabled: false },
+        labels: { datetimeUTC: false, formatter: (value) => chartAxisDateFormat.format(new Date(value)) }
+      },
+      yaxis: {
+        ...(stateLabels ? { min: 0, max: 1, tickAmount: 1 } : {}),
+        labels: {
+          formatter: (value) => stateLabels
+            ? (stateLabels[Math.round(value)] ?? "")
+            : new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 1 }).format(value)
+        }
+      },
+      tooltip: {
+        theme: isDark ? "dark" : "light",
+        x: { formatter: (value) => formatBudapestTime(new Date(value)) },
+        y: { formatter: (value) => formatChartValue(value) }
+      },
+      legend: { show: false },
+      noData: { text: "Nincs mérési adat" }
     };
 
-    // A grafikon címe bal felül, az utolsó mért érték jobb felül.
-    const title = document.createElementNS(svgNS, "text");
-    title.setAttribute("x", "24");
-    title.setAttribute("y", "30");
-    title.setAttribute("class", "chart-title");
-    title.textContent = chartLabel;
-    svg.append(title);
-
-    const latestValue = readings.length
-      ? formatChartValue(readings[readings.length - 1].value)
-      : "—";
-    addText(latestValue, chartWidth - 20, 30, "chart-value", "end");
-
-    // A rajzterület határai (képpontban): ide kerül maga a vonal, körülötte a rács és a tengelyfeliratok.
-    const plot = { left: stateLabels ? 114 : 58, right: chartWidth - 18, top: 76, bottom: 226 };
-    const frame = document.createElementNS(svgNS, "rect");
-    frame.setAttribute("x", String(plot.left));
-    frame.setAttribute("y", String(plot.top));
-    frame.setAttribute("width", String(plot.right - plot.left));
-    frame.setAttribute("height", String(plot.bottom - plot.top));
-    frame.setAttribute("class", "chart-frame");
-    svg.append(frame);
-
-    // Az értéktengely tartománya: állapotmezőnél 0-tól 1-ig, egyébként a legkisebb és a legnagyobb mért érték között.
-    const values = readings.map((reading) => reading.value);
-    let min = stateLabels ? 0 : values.length ? Math.min(...values) : 0;
-    let max = stateLabels ? 1 : values.length ? Math.max(...values) : 1;
-    if (min === max) {
-      // Állandó értéknél kis tartományt adunk a tengelynek, különben a vonal számolásakor nullával osztanánk.
-      const padding = Math.abs(min) * 0.1 || 1;
-      min -= padding;
-      max += padding;
-    }
-    const range = max - min || 1;
-    const tickCount = stateLabels ? 2 : 4;
-
-    if (readings.length) {
-      const summary = new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 2 });
-      const summaryText = stateLabels
-        ? `0 = ${stateLabels[0]}  ·  1 = ${stateLabels[1]}`
-        : `Min. ${summary.format(min)}${unit ? ` ${unit}` : ""}  ·  Max. ${summary.format(max)}${unit ? ` ${unit}` : ""}`;
-      addText(summaryText, 24, 53, "chart-summary");
-    }
-
-    // Vízszintes rácsvonalak és az értéktengely (függőleges) feliratai.
-    for (let index = 0; index < tickCount; index += 1) {
-      const ratio = index / (tickCount - 1);
-      const y = plot.top + ratio * (plot.bottom - plot.top);
-      const tickValue = max - ratio * range;
-      const gridLine = document.createElementNS(svgNS, "line");
-      gridLine.setAttribute("x1", String(plot.left));
-      gridLine.setAttribute("x2", String(plot.right));
-      gridLine.setAttribute("y1", y.toFixed(1));
-      gridLine.setAttribute("y2", y.toFixed(1));
-      gridLine.setAttribute("class", "chart-grid-line");
-      svg.append(gridLine);
-      const axisLabel = stateLabels
-        ? stateLabels[Math.round(tickValue)]
-        : new Intl.NumberFormat("hu-HU", { maximumFractionDigits: 1 }).format(tickValue);
-      addText(axisLabel, plot.left - 10, y + 4, "chart-axis-label", "end");
-    }
-
-    // Az időtengely (vízszintes) feliratai és a függőleges rácsvonalak, legfeljebb 5 darab.
-    const xTickCount = Math.min(5, readings.length);
-    const formatTimestamp = (timestamp) => {
-      const date = new Date(timestamp);
-      return Number.isNaN(date.getTime())
-        ? ""
-        : new Intl.DateTimeFormat("hu-HU", {
-            timeZone: "Europe/Budapest",
-            month: "short",
-            day: "numeric"
-          }).format(date);
-    };
-
-    for (let index = 0; index < xTickCount; index += 1) {
-      // Az időtengely feliratait egyenletesen osztjuk el a teljes adatsoron.
-      const ratio = xTickCount === 1 ? 0.5 : index / (xTickCount - 1);
-      const x = plot.left + ratio * (plot.right - plot.left);
-      const gridLine = document.createElementNS(svgNS, "line");
-      gridLine.setAttribute("x1", x.toFixed(1));
-      gridLine.setAttribute("x2", x.toFixed(1));
-      gridLine.setAttribute("y1", String(plot.top));
-      gridLine.setAttribute("y2", String(plot.bottom));
-      gridLine.setAttribute("class", "chart-grid-line");
-      svg.append(gridLine);
-
-      const readingIndex = Math.round(ratio * Math.max(readings.length - 1, 0));
-      const timestampLabel = readings.length ? formatTimestamp(readings[readingIndex].timestamp) : "";
-      const anchor = index === 0 ? "start" : index === xTickCount - 1 ? "end" : "middle";
-      addText(timestampLabel, x, plot.bottom + 22, "chart-axis-label", anchor);
-    }
-
-    if (plottedReadings.length) {
-      // A mért értékeket a rajzterület koordinátáira képezzük le (a legkisebb érték alulra, a legnagyobb felülre kerül).
-      const coordinates = plottedReadings.map((reading) => ({
-        x: readings.length === 1 ? (plot.left + plot.right) / 2 : plot.left + (reading.sourceIndex / (readings.length - 1)) * (plot.right - plot.left),
-        y: plot.bottom - ((reading.value - min) / range) * (plot.bottom - plot.top)
-      }));
-
-      const pointList = coordinates.map(({ x, y }) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-      // A vonal alatti kitöltött terület.
-      const area = document.createElementNS(svgNS, "polygon");
-      area.setAttribute("points", `${plot.left},${plot.bottom} ${pointList} ${plot.right},${plot.bottom}`);
-      area.setAttribute("class", "chart-area");
-      svg.append(area);
-
-      // Maga az adatvonal.
-      const line = document.createElementNS(svgNS, "polyline");
-      line.setAttribute("points", pointList);
-      line.setAttribute("class", "chart-line");
-      svg.append(line);
-
-      const latestPoint = coordinates.at(-1);
-      // Az utolsó mérési pont kiemelése egy kis körrel.
-      const marker = document.createElementNS(svgNS, "circle");
-      marker.setAttribute("cx", latestPoint.x.toFixed(1));
-      marker.setAttribute("cy", latestPoint.y.toFixed(1));
-      marker.setAttribute("r", "5");
-      marker.setAttribute("class", "chart-last-point");
-      svg.append(marker);
-
-      // Az egérrel mutatott pont jelzése: függőleges vonal, pont és egy buborék (tooltip) az időponttal és az értékkel. Alapból rejtett.
-      const hoverIndicator = document.createElementNS(svgNS, "g");
-      hoverIndicator.setAttribute("class", "chart-hover-indicator");
-      hoverIndicator.setAttribute("aria-hidden", "true");
-
-      const hoverLine = document.createElementNS(svgNS, "line");
-      hoverLine.setAttribute("y1", String(plot.top));
-      hoverLine.setAttribute("y2", String(plot.bottom));
-      hoverLine.setAttribute("class", "chart-hover-line");
-      hoverIndicator.append(hoverLine);
-
-      const hoverPoint = document.createElementNS(svgNS, "circle");
-      hoverPoint.setAttribute("r", "6");
-      hoverPoint.setAttribute("class", "chart-hover-point");
-      hoverIndicator.append(hoverPoint);
-
-      const tooltipWidth = 196;
-      const tooltipHeight = 58;
-      const tooltipBackground = document.createElementNS(svgNS, "rect");
-      tooltipBackground.setAttribute("width", String(tooltipWidth));
-      tooltipBackground.setAttribute("height", String(tooltipHeight));
-      tooltipBackground.setAttribute("rx", "10");
-      tooltipBackground.setAttribute("class", "chart-tooltip-background");
-      hoverIndicator.append(tooltipBackground);
-
-      const tooltipTime = document.createElementNS(svgNS, "text");
-      tooltipTime.setAttribute("class", "chart-tooltip-time");
-      tooltipTime.setAttribute("x", "12");
-      tooltipTime.setAttribute("y", "22");
-      hoverIndicator.append(tooltipTime);
-
-      const tooltipValue = document.createElementNS(svgNS, "text");
-      tooltipValue.setAttribute("class", "chart-tooltip-value");
-      tooltipValue.setAttribute("x", "12");
-      tooltipValue.setAttribute("y", "44");
-      hoverIndicator.append(tooltipValue);
-
-      svg.append(hoverIndicator);
-
-      // Átlátszó réteg a rajzterület fölött: ez fogja az egér és az érintés eseményeit.
-      const hitArea = document.createElementNS(svgNS, "rect");
-      hitArea.setAttribute("x", String(plot.left));
-      hitArea.setAttribute("y", String(plot.top));
-      hitArea.setAttribute("width", String(plot.right - plot.left));
-      hitArea.setAttribute("height", String(plot.bottom - plot.top));
-      hitArea.setAttribute("class", "chart-hover-area");
-      hitArea.setAttribute("aria-label", "Mutass egy mérési pontot a grafikonon");
-      svg.append(hitArea);
-
-      const moveHoverIndicator = (event) => {
-        const bounds = svg.getBoundingClientRect();
-        if (!bounds.width || !bounds.height) return;
-
-        const pointerX = ((event.clientX - bounds.left) / bounds.width) * chartWidth;
-        let nearestIndex = 0;
-        let nearestDistance = Number.POSITIVE_INFINITY;
-
-        // Megkeressük a kurzorhoz legközelebbi mérést, és megjelenítjük az értékét.
-        coordinates.forEach((coordinate, index) => {
-          const distance = Math.abs(coordinate.x - pointerX);
-          if (distance < nearestDistance) {
-            nearestIndex = index;
-            nearestDistance = distance;
-          }
-        });
-
-        const coordinate = coordinates[nearestIndex];
-        const reading = plottedReadings[nearestIndex];
-        // A grafikon szélénél a buborékot a másik oldalra tesszük, és a rajzterületen belül tartjuk.
-        const tooltipX = coordinate.x + tooltipWidth + 14 > plot.right
-          ? coordinate.x - tooltipWidth - 14
-          : coordinate.x + 14;
-        const tooltipY = Math.max(
-          plot.top + 4,
-          Math.min(plot.bottom - tooltipHeight - 4, coordinate.y - tooltipHeight - 14)
-        );
-
-        hoverLine.setAttribute("x1", coordinate.x.toFixed(1));
-        hoverLine.setAttribute("x2", coordinate.x.toFixed(1));
-        hoverPoint.setAttribute("cx", coordinate.x.toFixed(1));
-        hoverPoint.setAttribute("cy", coordinate.y.toFixed(1));
-        tooltipBackground.setAttribute("x", tooltipX.toFixed(1));
-        tooltipBackground.setAttribute("y", tooltipY.toFixed(1));
-        tooltipTime.setAttribute("x", (tooltipX + 12).toFixed(1));
-        tooltipTime.setAttribute("y", (tooltipY + 22).toFixed(1));
-        tooltipValue.setAttribute("x", (tooltipX + 12).toFixed(1));
-        tooltipValue.setAttribute("y", (tooltipY + 44).toFixed(1));
-        tooltipTime.textContent = formatBudapestTime(reading.timestamp);
-        tooltipValue.textContent = formatChartValue(reading.value);
-        hoverIndicator.classList.add("is-visible");
-      };
-
-      // Egérmozgásra vagy érintésre frissítjük a buborékot, a terület elhagyásakor elrejtjük.
-      hitArea.addEventListener("pointermove", moveHoverIndicator);
-      hitArea.addEventListener("pointerdown", moveHoverIndicator);
-      hitArea.addEventListener("pointerleave", () => hoverIndicator.classList.remove("is-visible"));
-    } else {
-      addText("Nincs mérési adat", (plot.left + plot.right) / 2, (plot.top + plot.bottom) / 2, "chart-axis-label", "middle");
-    }
-
-    chart.replaceChildren(svg);
+    const instance = new ApexCharts(chart, options);
+    apexCharts.set(chart, instance);
+    instance.render();
   });
 }
-
-// Ablak átméretezésekor (vagy a telefon elforgatásakor) újrarajzoljuk a grafikonokat, hogy olvashatók maradjanak.
-// A 150 ms-os késleltetés miatt nem rajzolunk újra minden egyes pixelnyi méretváltozásnál.
-window.addEventListener("resize", () => {
-  if (!chartFeedsForResize) return;
-  window.clearTimeout(chartResizeTimer);
-  chartResizeTimer = window.setTimeout(() => renderThingSpeakCharts(chartFeedsForResize), 150);
-});
 
 // ---------- Chat és szenzoradatok ----------
 
@@ -679,10 +506,13 @@ function setNumber(id, value, digits = 0) {
 }
 
 // Egy állapotjelző feliratát és színét állítja be. A CSS-osztály (status-on, status-off...) dönti el a színt.
+// A Tabler jelvények színe az állapottól függ (zöld: rendben, sárga: figyelmeztetés).
+const STATE_BADGE_CLASSES = { on: "bg-green-lt", warning: "bg-yellow-lt", pending: "bg-secondary-lt" };
+
 function setStateBadge(id, label, stateName) {
   const element = $(id);
   element.textContent = label;
-  element.className = `status status-${stateName}`;
+  element.className = `badge ${STATE_BADGE_CLASSES[stateName] || STATE_BADGE_CLASSES.pending}`;
 }
 
 // A bemutató kapcsolót a valódi eszközállapothoz igazítja, amíg a felhasználó meg nem nyomja. Utána a felhasználó választása marad,
@@ -759,7 +589,7 @@ function renderReadings(entry, saveToCache = true) {
     ? `Utoljára frissítve: ${date.toLocaleString("hu-HU")}`
     : "A ThingSpeak nem adott meg mérési időpontot.";
   $("connectionStatus").textContent = isStale ? "Régi mérés" : "Kapcsolódva";
-  $("connectionStatus").className = `connection-pill ${isStale ? "stale" : "connected"}`;
+  $("connectionStatus").className = `badge ${isStale ? "bg-yellow-lt" : "bg-green-lt"}`;
 }
 
 // Lekéri az utolsó 60 mérést a szervertől, és az utolsóval frissíti a kártyákat. Az AI-chat adatcsomagja is ebből áll össze.
@@ -782,7 +612,7 @@ async function loadLatestReadings({ quiet = false } = {}) {
     }
   } catch (error) {
     $("connectionStatus").textContent = "Nem elérhető";
-    $("connectionStatus").className = "connection-pill disconnected";
+    $("connectionStatus").className = "badge bg-red-lt";
     if (!state.lastEntry) $("lastUpdated").textContent = "Nem sikerült csatlakozni a ThingSpeak csatornához.";
     if (!quiet) addChatMessage("Rendszer", error.message || "Nem sikerült adatot betölteni a ThingSpeak csatornából.", "system");
     if (!quiet) addActivityLog("Nem sikerült betölteni a legutóbbi szenzoradatokat.", "error");
@@ -986,7 +816,7 @@ async function loadWeatherSuggestions(query) {
     places.forEach((place, index) => {
       const option = document.createElement("button");
       option.type = "button";
-      option.className = "weather-suggestion";
+      option.className = "weather-suggestion list-group-item list-group-item-action";
       option.id = `weather-location-option-${index}`;
       option.setAttribute("role", "option");
       option.setAttribute("aria-selected", "false");
@@ -1195,44 +1025,32 @@ async function submitChat(event) {
 // A világos/sötét téma beállítása. A téma a 'dark' osztály a <html> elemen, és a localStorage-ban is megmarad.
 // A theme-color meta jelzés a telefon böngészősávjának színét is átállítja. TODO: ugyanez a kód az add-device.js-ben is megvan, közös fájlba lehetne tenni.
 function setupTheme() {
-  // A választott témát a böngésző megjegyzi, hogy oldalváltás után se álljon vissza.
-  const savedTheme = localStorage.getItem("greenhouse-theme");
+  // A Tabler a téma nevét a <html data-bs-theme> attribútumból olvassa; a választást a böngésző megjegyzi.
+  const root = document.documentElement;
   const themeToggle = $("themeToggle");
-  if (savedTheme === "dark") document.documentElement.classList.add("dark");
   const updateThemeState = () => {
-    themeToggle.setAttribute("aria-pressed", String(document.documentElement.classList.contains("dark")));
+    themeToggle.setAttribute("aria-pressed", String(root.getAttribute("data-bs-theme") === "dark"));
   };
   updateThemeState();
   themeToggle.addEventListener("click", () => {
-    document.documentElement.classList.toggle("dark");
-    const theme = document.documentElement.classList.contains("dark") ? "dark" : "light";
-    localStorage.setItem("greenhouse-theme", theme);
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#121813" : "#f3f6f1");
+    const nextTheme = root.getAttribute("data-bs-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-bs-theme", nextTheme);
+    localStorage.setItem("greenhouse-theme", nextTheme);
     updateThemeState();
+    // A grafikonok színei a témától függnek, ezért újrarajzoljuk őket.
+    if (chartFeedsForResize) renderThingSpeakCharts(chartFeedsForResize);
   });
 }
 
-// A felső menü nyitása és zárása kis képernyőn (hamburger menü). Linkre kattintás után bezáródik, hogy ne takarja el a szakaszt, ahova görgettünk.
-// Az aria-expanded és az aria-label a képernyőolvasók miatt frissül.
 function setupNavigation() {
-  const menuButton = $("menuToggle");
-  const menuIcon = menuButton.querySelector(".material-symbols-rounded");
+  // A menü lenyitását a Tabler (Bootstrap) kezeli; linkre kattintva mobilon csak becsukjuk.
   const navLinks = $("navLinks");
-  menuButton.addEventListener("click", () => {
-    const isOpen = navLinks.classList.toggle("open");
-    menuButton.setAttribute("aria-expanded", String(isOpen));
-    menuButton.setAttribute("aria-label", isOpen ? "Menü bezárása" : "Menü megnyitása");
-    menuIcon.textContent = isOpen ? "close" : "menu";
-  });
   navLinks.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => {
-    navLinks.classList.remove("open");
-    menuButton.setAttribute("aria-expanded", "false");
-    menuButton.setAttribute("aria-label", "Menü megnyitása");
-    menuIcon.textContent = "menu";
+    navLinks.classList.remove("show");
+    document.querySelector(".navbar-toggler")?.setAttribute("aria-expanded", "false");
   }));
 }
 
-// A bemutató kapcsolók: megjegyzik, ha a felhasználó átkapcsolta őket. Nem küldenek parancsot a mikrovezérlőnek.
 function setupDemoSwitches() {
   // Ezek csak látványkapcsolók, nem küldenek parancsot az ESP32-nek.
   ["fanDemoSwitch", "ledDemoSwitch", "roofDemoSwitch"].forEach((id) => {
@@ -1316,7 +1134,7 @@ function initializeDashboard() {
   // A PDF-modul külön fájl. Ha hiányzik (például egy régi, gyorsítótárazott változat miatt), érthető üzenetet adunk.
   // A grafikonok csak szűrés esetén kerülnek a PDF-be, különben a PDF csak az általános adatokat tartalmazza.
   const reportOptions = () => (state.chartFiltered
-    ? { charts: [...document.querySelectorAll("[data-field-chart] svg")], periodLabel: state.chartPeriodLabel }
+    ? { charts: [...document.querySelectorAll("[data-field-chart] svg.apexcharts-svg")], periodLabel: state.chartPeriodLabel }
     : {});
   const getReportModule = () => {
     if (!state.lastEntry) throw new Error("Még nincs exportálható mérés.");
@@ -1464,7 +1282,7 @@ function setupSummaryEditor() {
       if (!rowInfo) return;
 
       const item = document.createElement("li");
-      item.className = "summary-config-item";
+      item.className = "summary-config-item list-group-item d-flex align-items-center gap-2";
       item.draggable = true;
       item.dataset.summaryKey = key;
 
@@ -1482,7 +1300,7 @@ function setupSummaryEditor() {
 
       const upButton = document.createElement("button");
       upButton.type = "button";
-      upButton.className = "icon-button summary-config-button";
+      upButton.className = "btn btn-icon btn-sm btn-ghost-secondary summary-config-button";
       upButton.disabled = index === 0;
       upButton.setAttribute("aria-label", `${rowInfo.label} mozgatása feljebb`);
       upButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">arrow_upward</span>';
@@ -1490,7 +1308,7 @@ function setupSummaryEditor() {
 
       const downButton = document.createElement("button");
       downButton.type = "button";
-      downButton.className = "icon-button summary-config-button";
+      downButton.className = "btn btn-icon btn-sm btn-ghost-secondary summary-config-button";
       downButton.disabled = index === order.length - 1;
       downButton.setAttribute("aria-label", `${rowInfo.label} mozgatása lejjebb`);
       downButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">arrow_downward</span>';
@@ -1498,7 +1316,7 @@ function setupSummaryEditor() {
 
       const removeButton = document.createElement("button");
       removeButton.type = "button";
-      removeButton.className = "icon-button summary-config-button summary-remove-button";
+      removeButton.className = "btn btn-icon btn-sm btn-ghost-danger summary-config-button summary-remove-button";
       removeButton.setAttribute("aria-label", `${rowInfo.label} eltávolítása a főoldalról`);
       removeButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">close</span>';
       removeButton.addEventListener("click", () => saveOrder(order.filter((itemKey) => itemKey !== key)));
@@ -1635,7 +1453,7 @@ function setupMetricEditor() {
       const itemInfo = METRIC_CARDS.find((item) => item.key === key);
       if (!itemInfo) return;
       const item = document.createElement("li");
-      item.className = "summary-config-item";
+      item.className = "summary-config-item list-group-item d-flex align-items-center gap-2";
       item.draggable = true;
 
       const grip = document.createElement("span");
@@ -1652,7 +1470,7 @@ function setupMetricEditor() {
       const makeMoveButton = (icon, direction, target) => {
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "icon-button summary-config-button";
+        button.className = "btn btn-icon btn-sm btn-ghost-secondary summary-config-button";
         button.disabled = !target;
         button.setAttribute("aria-label", `${itemInfo.label} mozgatása ${direction}`);
         button.innerHTML = `<span class="material-symbols-rounded" aria-hidden="true">${icon}</span>`;
@@ -1666,7 +1484,7 @@ function setupMetricEditor() {
 
       const remove = document.createElement("button");
       remove.type = "button";
-      remove.className = "icon-button summary-config-button summary-remove-button";
+      remove.className = "btn btn-icon btn-sm btn-ghost-danger summary-config-button summary-remove-button";
       remove.setAttribute("aria-label", `${itemInfo.label} eltávolítása a mérőkártyák közül`);
       remove.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">close</span>';
       remove.addEventListener("click", () => saveOrder(order.filter((itemKey) => itemKey !== key)));
@@ -1755,7 +1573,7 @@ function setupChartEditor() {
 
       const remove = document.createElement("button");
       remove.type = "button";
-      remove.className = "icon-button chart-remove-button";
+      remove.className = "btn btn-icon btn-sm btn-ghost-secondary chart-remove-button";
       remove.setAttribute("aria-label", `${chartNames[field]} grafikon eltávolítása`);
       remove.title = "Grafikon eltávolítása";
       remove.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">close</span>';
@@ -1775,7 +1593,7 @@ function setupChartEditor() {
       tile.className = "chart-add-tile";
       const addButton = document.createElement("button");
       addButton.type = "button";
-      addButton.className = "chart-add-trigger";
+      addButton.className = "btn btn-icon btn-primary chart-add-trigger";
       addButton.setAttribute("aria-label", "Grafikon hozzáadása");
       addButton.title = "Grafikon hozzáadása";
       addButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">add</span>';
@@ -1784,6 +1602,7 @@ function setupChartEditor() {
       picker.className = "chart-add-picker";
       picker.hidden = true;
       const select = document.createElement("select");
+      select.className = "form-select form-select-sm w-auto";
       select.setAttribute("aria-label", "Hozzáadható ThingSpeak-mező");
       const placeholder = document.createElement("option");
       placeholder.value = "";
@@ -1797,7 +1616,7 @@ function setupChartEditor() {
       });
       const confirm = document.createElement("button");
       confirm.type = "button";
-      confirm.className = "button secondary chart-add-confirm";
+      confirm.className = "btn btn-sm chart-add-confirm";
       confirm.textContent = "Hozzáadás";
       confirm.disabled = availableFields.length === 0;
       confirm.addEventListener("click", () => {

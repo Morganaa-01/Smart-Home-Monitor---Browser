@@ -1,295 +1,351 @@
 <!doctype html>
-<!-- Főoldal: bejelentkezés, növényházi adatok, grafikonok és az AI-chat. -->
 <html lang="hu">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f3f6f1">
   <meta name="description" content="ESP32-alapú okos növényház felügyeleti felülete élő szenzoradatokkal és AI-asszisztenssel.">
   <title>Okos Növényház | Felügyeleti rendszer</title>
   <script>
-    // Még a stíluslap előtt beállítjuk a témát, hogy frissítéskor ne villanjon fel a világos háttér.
+    // A mentett téma még az első kirajzolás előtt beáll, így nincs villanás.
     try {
-      if (localStorage.getItem("greenhouse-theme") === "dark") {
-        document.documentElement.classList.add("dark");
-        document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#121813");
-      }
+      document.documentElement.setAttribute("data-bs-theme", localStorage.getItem("greenhouse-theme") === "dark" ? "dark" : "light");
     } catch {
-      // Letiltott helyi tárolásnál az oldal az alapértelmezett világos témával indul.
+      document.documentElement.setAttribute("data-bs-theme", "light");
     }
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="flet-gallery-controls.css">
+  <link rel="stylesheet" href="vendor/tabler/css/tabler.min.css">
+  <link rel="stylesheet" href="app.css">
 </head>
 <body>
-  <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
-    <div class="login-card card">
-      <div class="login-brand">
-        <span class="logo-icon material-symbols-rounded" aria-hidden="true">eco</span>
-        <span>Okos Növényház</span>
+  <div class="page page-center" id="loginScreen" aria-labelledby="loginTitle">
+    <div class="container container-tight py-4">
+      <div class="text-center mb-4">
+        <span class="brand-mark"><span class="material-symbols-rounded" aria-hidden="true">eco</span> Okos Növényház</span>
       </div>
-      <p class="eyebrow">Privát felügyeleti felület</p>
-      <h1 id="loginTitle">Bejelentkezés</h1>
-      <p class="muted">A növényház adatainak megtekintéséhez jelentkezz be.</p>
-      <form id="loginForm" class="login-form">
-        <label for="loginUsername">Felhasználónév</label>
-        <input id="loginUsername" name="username" type="text" autocomplete="username" required>
-        <label for="loginPassword">Jelszó</label>
-        <div class="password-field">
-          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
-          <button class="password-visibility" id="passwordVisibilityBtn" type="button" aria-label="Jelszó megjelenítése" aria-pressed="false">
-            <span class="material-symbols-rounded" aria-hidden="true">visibility</span>
-          </button>
-        </div>
-        <button class="button primary" id="loginSubmit" type="submit">Belépés</button>
-        <p class="login-message" id="loginMessage" role="status" aria-live="polite"></p>
-      </form>
-    </div>
-  </section>
-
-  <div id="appShell" hidden>
-  <header class="site-header">
-    <nav class="navbar" aria-label="Fő navigáció">
-      <a class="logo" href="#home" aria-label="Okos Növényház kezdőlap">
-        <span class="logo-icon material-symbols-rounded" aria-hidden="true">eco</span>
-        <span>Okos Növényház</span>
-      </a>
-      <button class="menu-toggle" id="menuToggle" type="button" aria-label="Menü megnyitása" aria-expanded="false">
-        <span class="material-symbols-rounded" aria-hidden="true">menu</span>
-      </button>
-      <ul class="nav-links" id="navLinks">
-        <li><a href="#dashboardSection">Áttekintés</a></li>
-        <li><a href="#weatherSection">Kinti időjárás</a></li>
-        <li><a href="#automationSection">Működés</a></li>
-        <li><a href="add-device.html">Eszközök kezelése</a></li>
-        <li><a href="#chatSection">AI-asszisztens</a></li>
-        <li><a href="#thingspeak">Mérési előzmények</a></li>
-      </ul>
-      <button class="theme-toggle theme-toggle-icon" id="themeToggle" type="button" aria-label="Téma váltása" aria-pressed="false" title="Téma váltása">
-        <span class="material-symbols-rounded" aria-hidden="true">dark_mode</span>
-      </button>
-      <button class="nav-logout" id="logoutBtn" type="button" aria-label="Kijelentkezés" title="Kijelentkezés">
-        <span class="material-symbols-rounded" aria-hidden="true">logout</span>
-        <span class="nav-logout-label">Kijelentkezés</span>
-      </button>
-    </nav>
-
-    <section class="hero greenhouse-hero" id="home">
-      <div>
-        <p class="eyebrow">ESP32 · IoT növényfelügyelet</p>
-        <h1>Okos felügyelet a növényházban</h1>
-        <p class="hero-copy">Kövesd a szenzorok méréseit, nézd meg a helyi automatika állapotát, és kérj segítséget az aktuális környezeti adatok alapján.</p>
-        <div class="hero-actions">
-          <a class="button primary" href="#dashboardSection">Mérések megtekintése</a>
-          <a class="button secondary" href="#chatSection">Kérdés az asszisztenshez</a>
-        </div>
-      </div>
-      <!-- Felső adatcsomag és a fogaskerékről nyitható megjelenítési beállítások. -->
-      <article class="status-card latest-card" aria-live="polite">
-        <div class="card-heading-row">
-          <div><p class="eyebrow">ThingSpeak</p><h2>Legutóbbi adatcsomag</h2></div>
-          <div class="latest-card-actions">
-            <span class="connection-pill" id="connectionStatus">Kapcsolódás…</span>
-            <button class="icon-button latest-settings-toggle" id="summarySettingsToggle" type="button" aria-label="Főoldali sávok szerkesztése" aria-expanded="false" aria-controls="summarySettings metricSettings chartEditHint" title="Főoldali megjelenés szerkesztése">
-              <span class="material-symbols-rounded" aria-hidden="true">settings</span>
-            </button>
-          </div>
-        </div>
-        <p class="muted" id="lastUpdated">Mérés betöltése…</p>
-        <section class="latest-card-settings" id="summarySettings" aria-label="Megjelenített eszközsorok" hidden>
-          <p class="muted">Húzd a sorokat a kívánt helyre, vagy használd a nyilakat. A beállítás ezen a böngészőn mentődik.</p>
-          <ul class="summary-config-list" id="summaryConfigList"></ul>
-          <div class="summary-add-row">
-            <label class="visually-hidden" for="summaryRowSelect">Hozzáadható eszközsor</label>
-            <select id="summaryRowSelect"><option value="">Eszközsor kiválasztása</option></select>
-            <button class="button secondary" id="addSummaryRowBtn" type="button">Hozzáadás</button>
-          </div>
-        </section>
-        <div class="latest-metric-rows" id="latestMetricRows">
-          <div class="status-row" data-summary-key="temperature"><span>Hőmérséklet · BME280</span><strong id="heroTemperature">—</strong></div>
-          <div class="status-row" data-summary-key="humidity"><span>Páratartalom · BME280</span><strong id="heroHumidity">—</strong></div>
-          <div class="status-row" data-summary-key="pressure"><span>Légnyomás · BME280</span><strong id="heroPressure">—</strong></div>
-          <div class="status-row" data-summary-key="light"><span>Megvilágítás · TSL2561</span><strong id="heroLight">—</strong></div>
-          <div class="status-row" data-summary-key="rain"><span>Esőérzékelő</span><strong id="heroRain">—</strong></div>
-          <div class="status-row" data-summary-key="fan"><span>Ventilátor</span><strong id="heroFan">—</strong></div>
-          <div class="status-row" data-summary-key="led"><span>Kiegészítő LED</span><strong id="heroLed">—</strong></div>
-          <div class="status-row" data-summary-key="roof"><span>Növényház teteje</span><strong id="heroRoof">—</strong></div>
-        </div>
-      </article>
-    </section>
-  </header>
-
-  <main class="page-content">
-    <section class="section-heading dashboard-heading" id="dashboardSection">
-      <div><p class="eyebrow">Élő felügyelet</p><h2>Környezeti mérések</h2></div>
-      <div class="dashboard-heading-actions">
-        <a class="button secondary" href="add-device.html"><span class="material-symbols-rounded" aria-hidden="true">add</span><span>Eszköz hozzáadása</span></a>
-        <button class="button secondary" id="refreshDataBtn" type="button">Frissítés</button>
-      </div>
-    </section>
-    <p class="muted section-intro">Az értékeket az ESP32 tölti fel a ThingSpeak csatornára. A felület 30 másodpercenként frissül.</p>
-
-    <!-- Ezek a beállítások ugyanarról a fogaskerékről nyílnak, mint a felső adatcsomag szerkesztése. -->
-    <section class="display-editor-panel" id="metricSettings" aria-label="Környezeti mérőkártyák szerkesztése" hidden>
-      <div class="display-editor-heading">
-        <div><p class="eyebrow">Főoldali megjelenés</p><h3>Környezeti mérőkártyák</h3></div>
-        <span class="display-editor-note">A változtatások ezen a böngészőn mentődnek.</span>
-      </div>
-      <ul class="summary-config-list" id="metricConfigList"></ul>
-      <div class="summary-add-row">
-        <label class="visually-hidden" for="metricRowSelect">Hozzáadható mérőkártya</label>
-        <select id="metricRowSelect"><option value="">Mérőkártya kiválasztása</option></select>
-        <button class="button secondary" id="addMetricRowBtn" type="button">Hozzáadás</button>
-      </div>
-    </section>
-
-    <!-- A további mérő- és állapotkártyák alapból rejtve vannak, de a szerkesztőből hozzáadhatók. -->
-    <section class="dashboard-grid greenhouse-grid" aria-label="Legutóbbi szenzoradatok">
-      <article class="card sensor-card" data-metric-card="temperature"><span class="metric-icon material-symbols-rounded" aria-hidden="true">device_thermostat</span><p class="metric-label">Hőmérséklet</p><p class="value"><span id="temperatureValue">—</span><span class="unit">°C</span></p><p class="metric-detail">BME280 érzékelő</p></article>
-      <article class="card sensor-card" data-metric-card="humidity"><span class="metric-icon material-symbols-rounded" aria-hidden="true">water_drop</span><p class="metric-label">Relatív páratartalom</p><p class="value"><span id="humidityValue">—</span><span class="unit">%</span></p><p class="metric-detail">BME280 érzékelő</p></article>
-      <article class="card sensor-card" data-metric-card="pressure"><span class="metric-icon material-symbols-rounded" aria-hidden="true">speed</span><p class="metric-label">Légnyomás</p><p class="value"><span id="pressureValue">—</span><span class="unit">hPa</span></p><p class="metric-detail">BME280 érzékelő</p></article>
-      <article class="card sensor-card" data-metric-card="light"><span class="metric-icon material-symbols-rounded" aria-hidden="true">light_mode</span><p class="metric-label">Megvilágítás</p><p class="value"><span id="lightValue">—</span><span class="unit">lux</span></p><p class="metric-detail">TSL2561 fényérzékelő</p></article>
-      <article class="card sensor-card" data-metric-card="rain" hidden><span class="metric-icon material-symbols-rounded" aria-hidden="true">rainy</span><p class="metric-label">Esőérzékelő</p><p class="value" id="metricRainValue">—</p><p class="metric-detail">Növényházi érzékelő</p></article>
-      <article class="card sensor-card" data-metric-card="fan" hidden><span class="metric-icon material-symbols-rounded" aria-hidden="true">mode_fan</span><p class="metric-label">Ventilátor</p><p class="value" id="metricFanValue">—</p><p class="metric-detail">Rögzített eszközállapot</p></article>
-      <article class="card sensor-card" data-metric-card="led" hidden><span class="metric-icon material-symbols-rounded" aria-hidden="true">lightbulb</span><p class="metric-label">Kiegészítő LED</p><p class="value" id="metricLedValue">—</p><p class="metric-detail">Rögzített eszközállapot</p></article>
-      <article class="card sensor-card" data-metric-card="roof" hidden><span class="metric-icon material-symbols-rounded" aria-hidden="true">roofing</span><p class="metric-label">Növényház teteje</p><p class="value" id="metricRoofValue">—</p><p class="metric-detail">Rögzített eszközállapot</p></article>
-    </section>
-
-    <section class="card weather-card" id="weatherSection" aria-labelledby="weatherHeading">
-      <div class="section-heading">
-        <div><p class="eyebrow">Külső időjárás</p><h2 id="weatherHeading">Kinti hőmérséklet</h2></div>
-        <span class="weather-icon material-symbols-rounded" aria-hidden="true">partly_cloudy_day</span>
-      </div>
-      <form class="weather-form" id="weatherForm">
-        <label class="weather-location-field" for="weatherLocationInput">Település
-          <span class="weather-autocomplete">
-            <input type="text" id="weatherLocationInput" maxlength="80" placeholder="Például: Budapest vagy Szolnok" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="weatherLocationSuggestions">
-            <span class="weather-suggestions" id="weatherLocationSuggestions" role="listbox" hidden></span>
-          </span>
-        </label>
-        <button class="button primary" type="submit" id="weatherSearchBtn">Időjárás lekérése</button>
-        <button class="button secondary" type="button" id="useMyLocationBtn"><span class="material-symbols-rounded" aria-hidden="true">my_location</span> Saját helyzetem</button>
-      </form>
-      <p class="weather-status muted" id="weatherStatus" role="status" aria-live="polite">Írj be egy települést, vagy engedélyezd a helymeghatározást.</p>
-      <div class="weather-result" id="weatherResult" hidden>
-        <div class="weather-current-main"><span class="weather-place" id="weatherPlace"></span><strong><span id="weatherTemperature">—</span><span class="unit">°C</span></strong></div>
-        <div class="weather-details">
-          <span>Hőérzet <strong id="weatherFeelsLike">—</strong></span>
-          <span>Páratartalom <strong id="weatherHumidity">—</strong></span>
-          <span>Szél <strong id="weatherWind">—</strong></span>
-          <span>Csapadék <strong id="weatherPrecipitation">—</strong></span>
-        </div>
-        <p class="weather-updated muted" id="weatherUpdated"></p>
-      </div>
-      <p class="weather-attribution muted">Időjárási adatok: <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>. Helynév: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a> (<a href="https://operations.osmfoundation.org/policies/nominatim/" target="_blank" rel="noreferrer">Nominatim használati feltételek</a>). A koordináták csak a saját helyzet gomb megnyomása és engedélyezése után jutnak el az időjárás- és helynévszolgáltatáshoz.</p>
-    </section>
-
-    <section class="card system-card" id="automationSection">
-      <div class="section-heading"><div><p class="eyebrow">Helyi automatika</p><h2>Beavatkozók állapota</h2></div><span class="mode-pill">Vezérlés az ESP32-n</span></div>
-      <p class="muted">A mikrovezérlő a szenzorok alapján, helyben futtatja a szabályokat. Ez az oldal az utolsó feltöltött állapotot mutatja.</p>
-      <p class="device-control-note">A kapcsolók most csak felületi próbák, nem küldenek parancsot az ESP32-nek.</p>
-      <div class="device-grid greenhouse-devices">
-        <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">mode_fan</span><h3>Ventilátor</h3><label class="device-demo-switch"><span>Próba kapcsoló</span><input id="fanDemoSwitch" type="checkbox" role="switch" aria-label="Ventilátor próba kapcsoló"><span class="flet-switch-track" aria-hidden="true"></span></label></article>
-        <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">lightbulb</span><h3>LED</h3><label class="device-demo-switch"><span>Próba kapcsoló</span><input id="ledDemoSwitch" type="checkbox" role="switch" aria-label="LED próba kapcsoló"><span class="flet-switch-track" aria-hidden="true"></span></label></article>
-        <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">roofing</span><h3>Növényház teteje</h3><label class="device-demo-switch"><span>Próba kapcsoló</span><input id="roofDemoSwitch" type="checkbox" role="switch" aria-label="Növényház tető próba kapcsoló"><span class="flet-switch-track" aria-hidden="true"></span></label></article>
-        <article class="device-item"><span class="device-symbol material-symbols-rounded" aria-hidden="true">rainy</span><h3>Esőérzékelő</h3><p id="rainStatus" class="status status-pending">Nincs adat</p></article>
-      </div>
-    </section>
-
-    <section class="card chat-card" id="chatSection">
-      <p class="eyebrow">Növénygondozási segítség</p>
-      <h2>AI-asszisztens</h2>
-      <p class="muted">Kérdezz a növényház aktuális méréseiről. Az asszisztens megkapja az utolsó betöltött szenzoradatokat és eszközállapotokat.</p>
-      <div id="chatMessages" class="chat-messages" aria-live="polite" aria-label="Beszélgetés"></div>
-      <form class="chat-input-row" id="chatForm">
-        <label class="visually-hidden" for="chatInput">Kérdés az AI-asszisztenshez</label>
-        <input type="text" id="chatInput" maxlength="1000" placeholder="Például: Mit tegyek, ha túl magas a páratartalom?" required>
-        <button type="submit" id="sendChatBtn">Küldés</button>
-      </form>
-      <p class="chat-disclaimer">A javaslat tájékoztató jellegű; a beavatkozókat az asszisztens nem vezérli.</p>
-    </section>
-
-    <!-- A grafikonokat a script.js rajzolja ki a ThingSpeak mezőiből. -->
-    <section class="section" id="thingspeak">
-      <div class="section-heading"><div><p class="eyebrow">ThingSpeak · ESP32</p><h2>Mérési előzmények</h2><p class="muted">A grafikonok a firmware jelenlegi mezőkiosztását követik.</p></div></div>
-      <div class="chart-toolbar" aria-label="Grafikon beállításai">
-        <button class="button secondary chart-filter-toggle" id="chartFilterToggle" type="button" aria-controls="chartFilterPanel" aria-expanded="false">
-          <span class="material-symbols-rounded" aria-hidden="true">filter_alt</span>
-          <span>Szűrés</span>
-        </button>
-        <button class="button secondary chart-refresh-button" id="refreshChartsBtn" type="button">
-          <span class="material-symbols-rounded" aria-hidden="true">refresh</span>
-          <span>Frissítés</span>
-        </button>
-        <button class="button secondary chart-report-button" id="exportPdfBtn" type="button" disabled title="Szűrés nélkül csak az általános adatok kerülnek a PDF-be, szűrt időszaknál a grafikonok is.">
-          <span class="material-symbols-rounded" aria-hidden="true">picture_as_pdf</span>
-          <span>Mentés PDF-be</span>
-        </button>
-        <button class="button secondary chart-report-button" id="emailPdfBtn" type="button" disabled title="Szűrés nélkül csak az általános adatok kerülnek a PDF-be, szűrt időszaknál a grafikonok is.">
-          <span class="material-symbols-rounded" aria-hidden="true">mail</span>
-          <span>Küldés e-mailben</span>
-        </button>
-        <div class="chart-filter-panel" id="chartFilterPanel" hidden>
-          <label for="chartRangeSelect">Gyors időszak
-            <select id="chartRangeSelect">
-              <option value="" disabled>Válassz egy időszakot</option>
-              <option value="results:60">Utolsó 60 mérés</option>
-              <option value="results:200">Utolsó 200 mérés</option>
-              <option value="days:1">Utolsó 24 óra</option>
-              <option value="days:7">Utolsó 7 nap</option>
-              <option value="days:30">Utolsó 30 nap</option>
-              <option value="results:8000">Összes elérhető mérés (max. 8000)</option>
-            </select>
-          </label>
-          <form class="chart-custom-range" id="chartCustomRange">
-            <div class="chart-filter-heading">
-              <span class="material-symbols-rounded" aria-hidden="true">schedule</span>
-              <div>
-                <strong>Egyéni időszak</strong>
-                <p>Válassz kezdő és záró időpontot a grafikonhoz.</p>
+      <div class="card card-md">
+        <div class="card-body">
+          <div class="subheader mb-1">Privát felügyeleti felület</div>
+          <h1 class="h2 mb-2" id="loginTitle">Bejelentkezés</h1>
+          <p class="text-secondary">A növényház adatainak megtekintéséhez jelentkezz be.</p>
+          <form id="loginForm" autocomplete="on">
+            <div class="mb-3">
+              <label class="form-label" for="loginUsername">Felhasználónév</label>
+              <input class="form-control" id="loginUsername" name="username" type="text" autocomplete="username" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="loginPassword">Jelszó</label>
+              <div class="input-group input-group-flat">
+                <input class="form-control" id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+                <span class="input-group-text">
+                  <button class="btn btn-icon btn-sm btn-ghost-secondary" id="passwordVisibilityBtn" type="button" aria-label="Jelszó megjelenítése" aria-pressed="false">
+                    <span class="material-symbols-rounded" aria-hidden="true">visibility</span>
+                  </button>
+                </span>
               </div>
             </div>
-            <label for="chartStartDate">Kezdő időpont
-              <input id="chartStartDate" type="datetime-local" lang="hu-HU" required>
-            </label>
-            <label for="chartEndDate">Záró időpont
-              <input id="chartEndDate" type="datetime-local" lang="hu-HU" required>
-            </label>
-            <button class="button primary chart-apply-filter" type="submit">
-              <span class="material-symbols-rounded" aria-hidden="true">done</span>
-              <span>Szűrés alkalmazása</span>
-            </button>
+            <button class="btn btn-primary w-100" id="loginSubmit" type="submit">Belépés</button>
+            <p class="text-danger mt-3 mb-0" id="loginMessage" role="status" aria-live="polite"></p>
           </form>
         </div>
       </div>
-      <p class="chart-status muted" id="chartStatus" role="status" aria-live="polite">Grafikonadatok betöltése…</p>
-      <p class="chart-edit-hint" id="chartEditHint" hidden>Grafikon szerkesztése: az X eltávolítja a grafikont, az üres csempén lévő plusz mezőválasztót nyit.</p>
-      <div class="chart-grid greenhouse-charts" id="chartGrid" aria-label="ThingSpeak-grafikonok"></div>
-    </section>
-  </main>
-
-  <section class="section activity-log-section" id="activityLogSection" aria-labelledby="activityLogTitle">
-    <div class="section-heading">
-      <div>
-        <p class="eyebrow">MŰKÖDÉSI ESEMÉNYEK</p>
-        <h2 id="activityLogTitle">Eseménynapló</h2>
-        <p class="muted">A legutóbbi frissítések és rendszeresemények. A napló ezen a böngészőn tárolódik.</p>
-      </div>
-      <button class="button secondary" id="clearActivityLogBtn" type="button">
-        <span class="material-symbols-rounded" aria-hidden="true">delete_sweep</span>
-        <span>Napló törlése</span>
-      </button>
     </div>
-    <div class="card activity-log-card">
-      <ol class="activity-log-list" id="activityLogEntries" aria-live="polite"></ol>
-    </div>
-  </section>
-
-  <footer class="site-footer"><p>IoT-alapú okos növényház · ESP32 · ThingSpeak</p></footer>
   </div>
+
+  <div class="page" id="appShell" hidden>
+    <header class="navbar navbar-expand-md sticky-top d-print-none">
+      <div class="container-xl">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navLinks" aria-controls="navLinks" aria-expanded="false" aria-label="Menü megnyitása">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <a class="navbar-brand brand-mark pe-0 pe-md-3" href="#home" aria-label="Okos Növényház kezdőlap">
+          <span class="material-symbols-rounded" aria-hidden="true">eco</span>
+          <span>Okos Növényház</span>
+        </a>
+        <div class="navbar-nav flex-row order-md-last align-items-center gap-2">
+          <button class="btn btn-icon" id="themeToggle" type="button" aria-label="Téma váltása" aria-pressed="false" title="Téma váltása">
+            <span class="material-symbols-rounded" aria-hidden="true">dark_mode</span>
+          </button>
+          <button class="btn" id="logoutBtn" type="button" aria-label="Kijelentkezés" title="Kijelentkezés">
+            <span class="material-symbols-rounded" aria-hidden="true">logout</span>
+            <span class="d-none d-sm-inline">Kijelentkezés</span>
+          </button>
+        </div>
+        <div class="collapse navbar-collapse" id="navLinks">
+          <ul class="navbar-nav">
+            <li class="nav-item"><a class="nav-link" href="#dashboardSection">Áttekintés</a></li>
+            <li class="nav-item"><a class="nav-link" href="#weatherSection">Kinti időjárás</a></li>
+            <li class="nav-item"><a class="nav-link" href="#automationSection">Működés</a></li>
+            <li class="nav-item"><a class="nav-link" href="add-device.html">Eszközök kezelése</a></li>
+            <li class="nav-item"><a class="nav-link" href="#chatSection">AI-asszisztens</a></li>
+            <li class="nav-item"><a class="nav-link" href="#thingspeak">Mérési előzmények</a></li>
+          </ul>
+        </div>
+      </div>
+    </header>
+
+    <div class="page-wrapper">
+      <div class="page-header d-print-none" id="home">
+        <div class="container-xl">
+          <div class="row g-4 align-items-stretch">
+            <div class="col-lg-7">
+              <div class="page-pretitle">ESP32 · IoT növényfelügyelet</div>
+              <h1 class="page-title display-6 mb-3">Okos felügyelet a növényházban</h1>
+              <p class="text-secondary fs-4">Kövesd a szenzorok méréseit, nézd meg a helyi automatika állapotát, és kérj segítséget az aktuális környezeti adatok alapján.</p>
+              <div class="btn-list">
+                <a class="btn btn-primary" href="#dashboardSection">Mérések megtekintése</a>
+                <a class="btn" href="#chatSection">Kérdés az asszisztenshez</a>
+              </div>
+            </div>
+            <div class="col-lg-5">
+              <article class="card h-100 latest-card" aria-live="polite">
+                <div class="card-header">
+                  <div>
+                    <div class="subheader">ThingSpeak</div>
+                    <h2 class="card-title">Legutóbbi adatcsomag</h2>
+                  </div>
+                  <div class="card-actions d-flex align-items-center gap-2">
+                    <span class="badge bg-secondary-lt" id="connectionStatus">Kapcsolódás…</span>
+                    <button class="btn btn-icon btn-sm" id="summarySettingsToggle" type="button" aria-label="Főoldali sávok szerkesztése" aria-expanded="false" aria-controls="summarySettings metricSettings chartEditHint" title="Főoldali megjelenés szerkesztése">
+                      <span class="material-symbols-rounded" aria-hidden="true">settings</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="card-body border-bottom py-2">
+                  <p class="text-secondary mb-0" id="lastUpdated">Mérés betöltése…</p>
+                </div>
+                <section class="card-body border-bottom" id="summarySettings" aria-label="Megjelenített eszközsorok" hidden>
+                  <p class="text-secondary">Húzd a sorokat a kívánt helyre, vagy használd a nyilakat. A beállítás ezen a böngészőn mentődik.</p>
+                  <ul class="list-group mb-3 summary-config-list" id="summaryConfigList"></ul>
+                  <div class="input-group">
+                    <label class="visually-hidden" for="summaryRowSelect">Hozzáadható eszközsor</label>
+                    <select class="form-select" id="summaryRowSelect"><option value="">Eszközsor kiválasztása</option></select>
+                    <button class="btn" id="addSummaryRowBtn" type="button">Hozzáadás</button>
+                  </div>
+                </section>
+                <div class="list-group list-group-flush" id="latestMetricRows">
+                  <div class="list-group-item status-row" data-summary-key="temperature"><span>Hőmérséklet · BME280</span><strong id="heroTemperature">—</strong></div>
+                  <div class="list-group-item status-row" data-summary-key="humidity"><span>Páratartalom · BME280</span><strong id="heroHumidity">—</strong></div>
+                  <div class="list-group-item status-row" data-summary-key="pressure"><span>Légnyomás · BME280</span><strong id="heroPressure">—</strong></div>
+                  <div class="list-group-item status-row" data-summary-key="light"><span>Megvilágítás · TSL2561</span><strong id="heroLight">—</strong></div>
+                  <div class="list-group-item status-row" data-summary-key="rain"><span>Esőérzékelő</span><strong id="heroRain">—</strong></div>
+                  <div class="list-group-item status-row" data-summary-key="fan"><span>Ventilátor</span><strong id="heroFan">—</strong></div>
+                  <div class="list-group-item status-row" data-summary-key="led"><span>Kiegészítő LED</span><strong id="heroLed">—</strong></div>
+                  <div class="list-group-item status-row" data-summary-key="roof"><span>Növényház teteje</span><strong id="heroRoof">—</strong></div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <main class="page-body">
+        <div class="container-xl">
+          <section id="dashboardSection">
+            <div class="d-flex flex-wrap align-items-end justify-content-between gap-2 mb-2">
+              <div>
+                <div class="page-pretitle">Élő felügyelet</div>
+                <h2 class="page-title">Környezeti mérések</h2>
+              </div>
+              <div class="btn-list">
+                <a class="btn" href="add-device.html"><span class="material-symbols-rounded" aria-hidden="true">add</span> Eszköz hozzáadása</a>
+                <button class="btn" id="refreshDataBtn" type="button">Frissítés</button>
+              </div>
+            </div>
+            <p class="text-secondary">Az értékeket az ESP32 tölti fel a ThingSpeak csatornára. A felület 30 másodpercenként frissül.</p>
+
+            <section class="card mb-3" id="metricSettings" aria-label="Környezeti mérőkártyák szerkesztése" hidden>
+              <div class="card-header">
+                <div>
+                  <div class="subheader">Főoldali megjelenés</div>
+                  <h3 class="card-title">Környezeti mérőkártyák</h3>
+                </div>
+                <div class="card-actions text-secondary small">A változtatások ezen a böngészőn mentődnek.</div>
+              </div>
+              <div class="card-body">
+                <ul class="list-group mb-3 summary-config-list" id="metricConfigList"></ul>
+                <div class="input-group">
+                  <label class="visually-hidden" for="metricRowSelect">Hozzáadható mérőkártya</label>
+                  <select class="form-select" id="metricRowSelect"><option value="">Mérőkártya kiválasztása</option></select>
+                  <button class="btn" id="addMetricRowBtn" type="button">Hozzáadás</button>
+                </div>
+              </div>
+            </section>
+
+            <div class="greenhouse-grid" aria-label="Legutóbbi szenzoradatok">
+              <article class="card card-sm sensor-card" data-metric-card="temperature"><div class="card-body"><div class="d-flex align-items-center gap-3"><span class="avatar bg-green-lt"><span class="material-symbols-rounded" aria-hidden="true">device_thermostat</span></span><div><div class="subheader">Hőmérséklet</div><div class="h1 mb-0"><span id="temperatureValue">—</span><span class="unit">°C</span></div><div class="text-secondary small">BME280 érzékelő</div></div></div></div></article>
+              <article class="card card-sm sensor-card" data-metric-card="humidity"><div class="card-body"><div class="d-flex align-items-center gap-3"><span class="avatar bg-blue-lt"><span class="material-symbols-rounded" aria-hidden="true">water_drop</span></span><div><div class="subheader">Relatív páratartalom</div><div class="h1 mb-0"><span id="humidityValue">—</span><span class="unit">%</span></div><div class="text-secondary small">BME280 érzékelő</div></div></div></div></article>
+              <article class="card card-sm sensor-card" data-metric-card="pressure"><div class="card-body"><div class="d-flex align-items-center gap-3"><span class="avatar bg-purple-lt"><span class="material-symbols-rounded" aria-hidden="true">speed</span></span><div><div class="subheader">Légnyomás</div><div class="h1 mb-0"><span id="pressureValue">—</span><span class="unit">hPa</span></div><div class="text-secondary small">BME280 érzékelő</div></div></div></div></article>
+              <article class="card card-sm sensor-card" data-metric-card="light"><div class="card-body"><div class="d-flex align-items-center gap-3"><span class="avatar bg-yellow-lt"><span class="material-symbols-rounded" aria-hidden="true">light_mode</span></span><div><div class="subheader">Megvilágítás</div><div class="h1 mb-0"><span id="lightValue">—</span><span class="unit">lux</span></div><div class="text-secondary small">TSL2561 fényérzékelő</div></div></div></div></article>
+              <article class="card card-sm sensor-card" data-metric-card="rain" hidden><div class="card-body"><div class="d-flex align-items-center gap-3"><span class="avatar bg-cyan-lt"><span class="material-symbols-rounded" aria-hidden="true">rainy</span></span><div><div class="subheader">Esőérzékelő</div><div class="h2 mb-0" id="metricRainValue">—</div><div class="text-secondary small">Növényházi érzékelő</div></div></div></div></article>
+              <article class="card card-sm sensor-card" data-metric-card="fan" hidden><div class="card-body"><div class="d-flex align-items-center gap-3"><span class="avatar bg-azure-lt"><span class="material-symbols-rounded" aria-hidden="true">mode_fan</span></span><div><div class="subheader">Ventilátor</div><div class="h2 mb-0" id="metricFanValue">—</div><div class="text-secondary small">Rögzített eszközállapot</div></div></div></div></article>
+              <article class="card card-sm sensor-card" data-metric-card="led" hidden><div class="card-body"><div class="d-flex align-items-center gap-3"><span class="avatar bg-orange-lt"><span class="material-symbols-rounded" aria-hidden="true">lightbulb</span></span><div><div class="subheader">Kiegészítő LED</div><div class="h2 mb-0" id="metricLedValue">—</div><div class="text-secondary small">Rögzített eszközállapot</div></div></div></div></article>
+              <article class="card card-sm sensor-card" data-metric-card="roof" hidden><div class="card-body"><div class="d-flex align-items-center gap-3"><span class="avatar bg-teal-lt"><span class="material-symbols-rounded" aria-hidden="true">roofing</span></span><div><div class="subheader">Növényház teteje</div><div class="h2 mb-0" id="metricRoofValue">—</div><div class="text-secondary small">Rögzített eszközállapot</div></div></div></div></article>
+            </div>
+          </section>
+
+          <section class="card mt-4" id="weatherSection" aria-labelledby="weatherHeading">
+            <div class="card-header">
+              <div>
+                <div class="subheader">Külső időjárás</div>
+                <h2 class="card-title" id="weatherHeading">Kinti hőmérséklet</h2>
+              </div>
+              <div class="card-actions"><span class="material-symbols-rounded text-secondary" aria-hidden="true">partly_cloudy_day</span></div>
+            </div>
+            <div class="card-body">
+              <form class="row g-2 align-items-end" id="weatherForm">
+                <div class="col-md">
+                  <label class="form-label" for="weatherLocationInput">Település</label>
+                  <div class="weather-autocomplete">
+                    <input class="form-control" type="text" id="weatherLocationInput" maxlength="80" placeholder="Például: Budapest vagy Szolnok" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="weatherLocationSuggestions">
+                    <div class="weather-suggestions list-group" id="weatherLocationSuggestions" role="listbox" hidden></div>
+                  </div>
+                </div>
+                <div class="col-md-auto"><button class="btn btn-primary w-100" type="submit" id="weatherSearchBtn">Időjárás lekérése</button></div>
+                <div class="col-md-auto"><button class="btn w-100" type="button" id="useMyLocationBtn"><span class="material-symbols-rounded" aria-hidden="true">my_location</span> Saját helyzetem</button></div>
+              </form>
+              <p class="weather-status text-secondary mt-3 mb-0" id="weatherStatus" role="status" aria-live="polite">Írj be egy települést, vagy engedélyezd a helymeghatározást.</p>
+              <div class="weather-result mt-3" id="weatherResult" hidden>
+                <div class="d-flex flex-wrap align-items-baseline justify-content-between gap-2">
+                  <span class="h3 mb-0" id="weatherPlace"></span>
+                  <strong class="display-6"><span id="weatherTemperature">—</span><span class="unit">°C</span></strong>
+                </div>
+                <div class="row row-cards mt-2 weather-details">
+                  <div class="col-6 col-md-3"><div class="text-secondary small">Hőérzet</div><strong id="weatherFeelsLike">—</strong></div>
+                  <div class="col-6 col-md-3"><div class="text-secondary small">Páratartalom</div><strong id="weatherHumidity">—</strong></div>
+                  <div class="col-6 col-md-3"><div class="text-secondary small">Szél</div><strong id="weatherWind">—</strong></div>
+                  <div class="col-6 col-md-3"><div class="text-secondary small">Csapadék</div><strong id="weatherPrecipitation">—</strong></div>
+                </div>
+                <p class="weather-updated text-secondary small mt-2 mb-0" id="weatherUpdated"></p>
+              </div>
+            </div>
+            <div class="card-footer text-secondary small weather-attribution">Időjárási adatok: <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>. Helynév: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a> (<a href="https://operations.osmfoundation.org/policies/nominatim/" target="_blank" rel="noreferrer">Nominatim használati feltételek</a>). A koordináták csak a saját helyzet gomb megnyomása és engedélyezése után jutnak el az időjárás- és helynévszolgáltatáshoz.</div>
+          </section>
+
+          <section class="card mt-4" id="automationSection">
+            <div class="card-header">
+              <div>
+                <div class="subheader">Helyi automatika</div>
+                <h2 class="card-title">Beavatkozók állapota</h2>
+              </div>
+              <div class="card-actions"><span class="badge bg-green-lt">Vezérlés az ESP32-n</span></div>
+            </div>
+            <div class="card-body">
+              <p class="text-secondary">A mikrovezérlő a szenzorok alapján, helyben futtatja a szabályokat. Ez az oldal az utolsó feltöltött állapotot mutatja.</p>
+              <div class="alert alert-info" role="note">A kapcsolók most csak felületi próbák, nem küldenek parancsot az ESP32-nek.</div>
+              <div class="greenhouse-devices">
+                <article class="card card-sm"><div class="card-body"><span class="material-symbols-rounded text-secondary" aria-hidden="true">mode_fan</span><h3 class="card-title mt-2">Ventilátor</h3><label class="form-check form-switch mb-0"><input class="form-check-input" id="fanDemoSwitch" type="checkbox" role="switch" aria-label="Ventilátor próba kapcsoló"><span class="form-check-label">Próba kapcsoló</span></label></div></article>
+                <article class="card card-sm"><div class="card-body"><span class="material-symbols-rounded text-secondary" aria-hidden="true">lightbulb</span><h3 class="card-title mt-2">LED</h3><label class="form-check form-switch mb-0"><input class="form-check-input" id="ledDemoSwitch" type="checkbox" role="switch" aria-label="LED próba kapcsoló"><span class="form-check-label">Próba kapcsoló</span></label></div></article>
+                <article class="card card-sm"><div class="card-body"><span class="material-symbols-rounded text-secondary" aria-hidden="true">roofing</span><h3 class="card-title mt-2">Növényház teteje</h3><label class="form-check form-switch mb-0"><input class="form-check-input" id="roofDemoSwitch" type="checkbox" role="switch" aria-label="Növényház tető próba kapcsoló"><span class="form-check-label">Próba kapcsoló</span></label></div></article>
+                <article class="card card-sm"><div class="card-body"><span class="material-symbols-rounded text-secondary" aria-hidden="true">rainy</span><h3 class="card-title mt-2">Esőérzékelő</h3><span id="rainStatus" class="badge bg-secondary-lt">Nincs adat</span></div></article>
+              </div>
+            </div>
+          </section>
+
+          <section class="card mt-4" id="chatSection">
+            <div class="card-header">
+              <div>
+                <div class="subheader">Növénygondozási segítség</div>
+                <h2 class="card-title">AI-asszisztens</h2>
+              </div>
+            </div>
+            <div class="card-body">
+              <p class="text-secondary">Kérdezz a növényház aktuális méréseiről. Az asszisztens megkapja az utolsó betöltött szenzoradatokat és eszközállapotokat.</p>
+              <div id="chatMessages" class="chat-messages" aria-live="polite" aria-label="Beszélgetés"></div>
+              <form class="input-group mt-3" id="chatForm">
+                <label class="visually-hidden" for="chatInput">Kérdés az AI-asszisztenshez</label>
+                <input class="form-control" type="text" id="chatInput" maxlength="1000" placeholder="Például: Mit tegyek, ha túl magas a páratartalom?" required>
+                <button class="btn btn-primary" type="submit" id="sendChatBtn">Küldés</button>
+              </form>
+              <p class="text-secondary small mt-2 mb-0">A javaslat tájékoztató jellegű; a beavatkozókat az asszisztens nem vezérli.</p>
+            </div>
+          </section>
+
+          <section class="mt-4" id="thingspeak">
+            <div class="mb-3">
+              <div class="page-pretitle">ThingSpeak · ESP32</div>
+              <h2 class="page-title">Mérési előzmények</h2>
+              <p class="text-secondary mb-0">A grafikonok a firmware jelenlegi mezőkiosztását követik.</p>
+            </div>
+            <div class="btn-list mb-2" aria-label="Grafikon beállításai">
+              <button class="btn chart-filter-toggle" id="chartFilterToggle" type="button" aria-controls="chartFilterPanel" aria-expanded="false">
+                <span class="material-symbols-rounded" aria-hidden="true">filter_alt</span>
+                <span>Szűrés</span>
+              </button>
+              <button class="btn" id="refreshChartsBtn" type="button">
+                <span class="material-symbols-rounded" aria-hidden="true">refresh</span>
+                <span>Frissítés</span>
+              </button>
+              <button class="btn chart-report-button" id="exportPdfBtn" type="button" disabled title="Szűrés nélkül csak az általános adatok kerülnek a PDF-be, szűrt időszaknál a grafikonok is.">
+                <span class="material-symbols-rounded" aria-hidden="true">picture_as_pdf</span>
+                <span>Mentés PDF-be</span>
+              </button>
+              <button class="btn chart-report-button" id="emailPdfBtn" type="button" disabled title="Szűrés nélkül csak az általános adatok kerülnek a PDF-be, szűrt időszaknál a grafikonok is.">
+                <span class="material-symbols-rounded" aria-hidden="true">mail</span>
+                <span>Küldés e-mailben</span>
+              </button>
+            </div>
+            <div class="card card-body mb-3" id="chartFilterPanel" hidden>
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label" for="chartRangeSelect">Gyors időszak</label>
+                  <select class="form-select" id="chartRangeSelect">
+                    <option value="" disabled>Válassz egy időszakot</option>
+                    <option value="results:60">Utolsó 60 mérés</option>
+                    <option value="results:200">Utolsó 200 mérés</option>
+                    <option value="days:1">Utolsó 24 óra</option>
+                    <option value="days:7">Utolsó 7 nap</option>
+                    <option value="days:30">Utolsó 30 nap</option>
+                    <option value="results:8000">Összes elérhető mérés (max. 8000)</option>
+                  </select>
+                </div>
+                <form class="col-md-8" id="chartCustomRange">
+                  <div class="subheader mb-2">Egyéni időszak</div>
+                  <div class="row g-2 align-items-end">
+                    <div class="col-sm"><label class="form-label" for="chartStartDate">Kezdő időpont</label><input class="form-control" id="chartStartDate" type="datetime-local" lang="hu-HU" required></div>
+                    <div class="col-sm"><label class="form-label" for="chartEndDate">Záró időpont</label><input class="form-control" id="chartEndDate" type="datetime-local" lang="hu-HU" required></div>
+                    <div class="col-sm-auto"><button class="btn btn-primary chart-apply-filter" type="submit">Szűrés alkalmazása</button></div>
+                  </div>
+                </form>
+              </div>
+            </div>
+            <p class="text-secondary" id="chartStatus" role="status" aria-live="polite">Grafikonadatok betöltése…</p>
+            <div class="alert alert-info" id="chartEditHint" role="note" hidden>Grafikon szerkesztése: az X eltávolítja a grafikont, az üres csempén lévő plusz mezőválasztót nyit.</div>
+            <div class="chart-grid" id="chartGrid" aria-label="ThingSpeak-grafikonok"></div>
+          </section>
+
+          <section class="mt-4 mb-4" id="activityLogSection" aria-labelledby="activityLogTitle">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="subheader">Működési események</div>
+                  <h2 class="card-title" id="activityLogTitle">Eseménynapló</h2>
+                </div>
+                <div class="card-actions">
+                  <button class="btn btn-sm" id="clearActivityLogBtn" type="button">
+                    <span class="material-symbols-rounded" aria-hidden="true">delete_sweep</span> Napló törlése
+                  </button>
+                </div>
+              </div>
+              <div class="card-body">
+                <p class="text-secondary">A legutóbbi frissítések és rendszeresemények. A napló ezen a böngészőn tárolódik.</p>
+                <ol class="list-group activity-log-list" id="activityLogEntries" aria-live="polite"></ol>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <footer class="footer footer-transparent d-print-none">
+        <div class="container-xl text-center text-secondary">IoT-alapú okos növényház · ESP32 · ThingSpeak</div>
+      </footer>
+    </div>
+  </div>
+
+  <script src="vendor/tabler/libs/apexcharts/apexcharts.min.js"></script>
+  <script src="vendor/tabler/js/tabler.min.js"></script>
   <script src="app-dialog.js" defer></script>
   <script src="measurement-report.js?v=5" defer></script>
   <script src="script.js?v=6" defer></script>

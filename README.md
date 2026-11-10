@@ -31,6 +31,10 @@ A felülethez a szerver ellenőrzi a belépési adatokat, és aláírt, HttpOnly
 
 A belépési jelszót és a munkamenet titkát ne tedd a forráskódba és ne töltsd fel GitHubra. Nyilvános tárhelyen használj egyedi, erős jelszót.
 
+## Felület
+
+A felület a Tabler (MIT) komponenseire épül, a grafikonokat az ApexCharts rajzolja. A részletes leírás a [docs/TABLER-UI.md](docs/TABLER-UI.md) fájlban, a forrásjegyzék az [UI-SOURCES.md](UI-SOURCES.md) fájlban található.
+
 ## Indítás helyben
 
 ```powershell
