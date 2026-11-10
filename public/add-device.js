@@ -1,10 +1,12 @@
-// Device manager page: add, edit and delete devices in the local storage of the browser.
-// The list is saved in the browser and the cards are drawn from it.
-// Adding a device is only a record. It does not pair any hardware or change the ESP32 program.
+// Eszközkezelő oldal: itt lehet eszközöket felvenni, szerkeszteni és törölni.
+// Az eszközlistát a böngésző helyi tárhelyében (localStorage) tároljuk, és ebből rajzoljuk ki a kártyákat.
+// Egy eszköz felvétele csak nyilvántartás: nem párosít hardvert, és az ESP32 programját sem módosítja.
+// Az oldal elemei: az űrlap, az eszközlista és a téma kapcsoló (a HTML-ben az id alapján keressük meg őket).
 const deviceForm = document.getElementById("deviceForm");
 const deviceList = document.getElementById("deviceList");
 const themeToggle = document.getElementById("themeToggle");
 
+// Az űrlap mezői. Az editIndex rejtett mező: ha üres, új eszközt veszünk fel, ha szám, akkor azt az eszközt szerkesztjük.
 const editIndexInput = document.getElementById("editIndex");
 const deviceNameInput = document.getElementById("deviceName");
 const deviceTypeInput = document.getElementById("deviceType");
@@ -14,6 +16,7 @@ const saveDeviceBtn = document.getElementById("saveDeviceBtn");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
 const deviceMessage = document.getElementById("deviceMessage");
 
+// Az eszköztípusok angol kulcsai és a felületen megjelenő magyar nevei.
 const DEVICE_TYPE_LABELS = {
   Temperature: "Hőmérséklet",
   Humidity: "Páratartalom",
@@ -29,7 +32,9 @@ const DEVICE_TYPE_LABELS = {
   Other: "Egyéb"
 };
 
+// Ezzel a kulccsal jegyezzük meg, hogy az alaplistát már betöltöttük (ne kerüljön vissza egy törölt kártya).
 const DEVICE_INITIALIZED_KEY = "smartHomeDevicesInitialized";
+// A növényház jelenlegi eszközei: minden eszközhöz tartozik egy ThingSpeak-mező (field1...field8).
 const CURRENT_GREENHOUSE_DEVICES = [
   { id: "firmware-field1", name: "BME280 · Hőmérséklet", type: "Temperature", field: "1" },
   { id: "firmware-field2", name: "BME280 · Páratartalom", type: "Humidity", field: "2" },
@@ -47,11 +52,13 @@ const CURRENT_GREENHOUSE_DEVICES = [
   source: "ESP32 · ThingSpeak"
 }));
 
-// ---------- Saved devices ----------
+// ---------- Mentett eszközök ----------
 
-// The default list is added only once, so a deleted card does not come back at every start.
+// Betölti az eszközlistát a böngésző helyi tárhelyéből. Az első megnyitáskor a növényház ismert eszközeit is hozzáadja,
+// utána már csak a felhasználó saját listáját használja. Az alaplista csak egyszer kerül be, így a törölt kártya nem jön vissza.
+// Ha a mentett adat sérült, üres listával folytatjuk, hogy az oldal ne álljon le.
 function loadDevices() {
-  // On the first visit add the known ESP32 devices, afterwards load the user's list.
+  // Első megnyitáskor betesszük az ESP32 ismert eszközeit, utána a felhasználó saját listáját töltjük be.
   try {
     const savedDevices = JSON.parse(localStorage.getItem("smartHomeDevices") || "[]");
     const devices = Array.isArray(savedDevices)
@@ -74,15 +81,17 @@ function loadDevices() {
   }
 }
 
+// Az eszközök listája a memóriában. Induláskor a helyi tárhelyből töltjük be.
 let devices = loadDevices();
 
-// This is local storage only, it is not synced to another phone or computer.
+// Elmenti az eszközlistát a böngésző helyi tárhelyébe. Ez böngészőnként külön tárolódik, nem szinkronizálódik másik
+// telefonra vagy gépre, és nem a ThingSpeak csatornába kerül.
 function saveDevices() {
-  // The list is stored per browser, not in the ThingSpeak channel.
+  // A lista böngészőnként tárolódik, nem a ThingSpeak csatornában.
   localStorage.setItem("smartHomeDevices", JSON.stringify(devices));
 }
 
-// Dates are saved as ISO strings, the page shows them in Budapest time.
+// Egy ISO formátumú dátumot (2026-11-08T19:33:00Z) olvasható, budapesti idejű szöveggé alakít.
 function formatDate(dateString) {
   if (!dateString) {
     return "Nincs adat";
@@ -94,21 +103,22 @@ function formatDate(dateString) {
     : date.toLocaleString("hu-HU", { timeZone: "Europe/Budapest" });
 }
 
-// The small log writer of script.js is copied here, because this page does not load script.js.
-// TODO: move the localStorage helpers into one shared file.
+// Beír egy sort az eseménynaplóba, amit a főoldal is megjelenít. A főoldal naplózó függvénye (script.js) ide másolva van,
+// mert ez az oldal nem tölti be a script.js fájlt. TODO: a localStorage segédfüggvényeket egy közös fájlba lehetne tenni.
 function logDeviceActivity(message) {
-  // Write to the same local activity log that the main page shows.
+  // Ugyanabba a helyi eseménynaplóba írunk, amit a főoldal is megjelenít.
   try {
     const savedEntries = JSON.parse(localStorage.getItem("greenhouse-activity-log") || "[]");
     const entries = Array.isArray(savedEntries) ? savedEntries : [];
     entries.unshift({ at: new Date().toISOString(), message, level: "success" });
     localStorage.setItem("greenhouse-activity-log", JSON.stringify(entries.slice(0, 30)));
   } catch {
-    // Saving the device still works if the browser does not allow logging.
+    // Az eszköz mentése akkor is sikeres marad, ha a böngésző nem engedi a naplózást.
   }
 }
 
-// textContent is used for the value, so what the user typed can never become HTML.
+// Egy 'Címke: érték' sort ad az eszközkártyához. Az értéket textContent-tel (sima szövegként) tesszük ki,
+// így amit a felhasználó beírt, soha nem futhat le HTML-ként.
 function addDetail(container, label, value) {
   const line = document.createElement("p");
   const name = document.createElement("strong");
@@ -118,11 +128,12 @@ function addDetail(container, label, value) {
   container.appendChild(line);
 }
 
-// ---------- Showing the device list ----------
+// ---------- Az eszközlista megjelenítése ----------
 
-// After saving or deleting, rebuild the cards from the stored list.
+// Újrarajzolja az eszközkártyákat a tárolt listából. Mentés vagy törlés után mindig ezt hívjuk meg.
+// A kártyákat DOM-elemekből építjük fel (nem HTML-szövegből), így a felhasználó szövege sosem futhat le kódként.
 function renderDevices() {
-  // Build the list items from DOM elements, so user text never runs as HTML.
+  // A listaelemeket DOM-elemekből építjük fel, így a felhasználó szövege nem futhat le HTML-kódként.
   deviceList.replaceChildren();
   const count = document.getElementById("deviceCount");
   if (count) count.textContent = `${devices.length} eszköz`;
@@ -148,7 +159,7 @@ function renderDevices() {
     actions.className = "device-actions";
     title.textContent = device.name || "Névtelen eszköz";
 
-    // Put the saved data on the page as plain text.
+    // Az elmentett adatokat egyszerű szövegként tesszük az oldalra.
     addDetail(details, "Típus", DEVICE_TYPE_LABELS[device.type] || device.type || "Nincs megadva");
     addDetail(details, "ThingSpeak-mező", device.field || device.thingSpeakField || "Nincs hozzárendelve");
     addDetail(details, "Elhelyezés", device.location || "Nincs megadva");
@@ -176,20 +187,20 @@ function renderDevices() {
   });
 }
 
-// Clearing editIndexInput switches the form back from edit mode to add mode.
+// Kiüríti az űrlapot. Az editIndex mező törlésével visszaáll 'új eszköz felvétele' módba a szerkesztés módból.
 function resetForm() {
-  // After saving or cancelling, reset the form for a new device.
+  // Mentés vagy megszakítás után visszaállítjuk az űrlapot új eszköz felvételére.
   deviceForm.reset();
   editIndexInput.value = "";
   saveDeviceBtn.textContent = "Eszköz mentése";
   deviceMessage.textContent = "";
 }
 
-// ---------- Add, edit and delete a device ----------
+// ---------- Eszköz felvétele, szerkesztése, törlése ----------
 
-// Fill the form with the saved data, so the same form can be used for editing.
+// Szerkesztés indítása: a kiválasztott eszköz adatait visszatölti az űrlapba, így ugyanaz az űrlap használható új felvételre és módosításra is.
 function editDevice(index) {
-  // Load the data of the selected device into the form fields.
+  // A kiválasztott eszköz adatait betöltjük az űrlap mezőibe.
   const device = devices[index];
   if (!device) return;
 
@@ -203,9 +214,9 @@ function editDevice(index) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-// There is no undo, so the confirm dialog is the only safety.
+// Egy eszköz törlése. Visszavonás nincs, ezért előbb megerősítést kérünk egy párbeszédablakban.
 async function deleteDevice(index) {
-  // Ask for confirmation before deleting, because the device is removed from the saved list.
+  // Törlés előtt megerősítést kérünk, mert az eszköz kikerül a mentett listából.
   if (!devices[index]) return;
 
   const confirmed = await window.AppDialog.confirm("Biztosan törlöd ezt az eszközt?", {
@@ -221,6 +232,7 @@ async function deleteDevice(index) {
   logDeviceActivity("Egy eszköz törölve lett.");
 }
 
+// Az űrlap elküldése (mentés gomb): ellenőrzi a kötelező mezőket, majd új eszközt vesz fel vagy a meglévőt módosítja.
 deviceForm.addEventListener("submit", (event) => {
   event.preventDefault();
 
@@ -251,7 +263,7 @@ deviceForm.addEventListener("submit", (event) => {
     ...(existingDevice?.source ? { source: existingDevice.source } : {})
   };
 
-  // When editing, replace the existing record. A new device goes to the end of the list.
+  // Szerkesztéskor a meglévő rekord helyére írunk, új eszköznél pedig a lista végére tesszük.
   if (isNewDevice) {
     devices.push(deviceData);
   } else {
@@ -265,13 +277,15 @@ deviceForm.addEventListener("submit", (event) => {
   logDeviceActivity(isNewDevice ? `Új eszköz felvéve: ${name}.` : `Eszköz módosítva: ${name}.`);
 });
 
+// A Mégse gomb kiüríti az űrlapot, és visszaáll új eszköz felvételére.
 cancelEditBtn.addEventListener("click", resetForm);
 
-// ---------- Theme and page start ----------
+// ---------- Téma és az oldal indítása ----------
 
-// Same theme code as in script.js, so both pages stay in sync.
+// A világos/sötét téma beállítása. A téma a 'dark' osztály a <html> elemen, és a localStorage-ban is megmarad.
+// Ugyanaz a kód van a script.js-ben, hogy a két oldal témája mindig egyezzen. TODO: közös fájlba lehetne tenni.
 function setupTheme() {
-  // Use the same theme setting as the main page, so changing page keeps the theme.
+  // A főoldallal közös beállítást használjuk, így oldalváltáskor a téma nem változik meg.
   const storedTheme = localStorage.getItem("greenhouse-theme");
   if (storedTheme === "dark") document.documentElement.classList.add("dark");
   themeToggle.setAttribute("aria-pressed", String(document.documentElement.classList.contains("dark")));
@@ -286,7 +300,7 @@ function setupTheme() {
   });
 }
 
-// Same menu code as in script.js.
+// A felső menü nyitása/zárása kis képernyőn. Ugyanaz a kód, mint a script.js-ben.
 function setupNavigation() {
   const menuButton = document.getElementById("menuToggle");
   const menuIcon = menuButton.querySelector(".material-symbols-rounded");
@@ -307,7 +321,8 @@ function setupNavigation() {
   }));
 }
 
-// Logout is a DELETE to /api/auth, the server clears the cookie because JavaScript cannot touch an HttpOnly cookie.
+// A kijelentkezés gomb: DELETE kérést küld a /api/auth címre, a szerver pedig törli a sütit,
+// mert a JavaScript az HttpOnly sütit nem tudja közvetlenül törölni.
 function setupLogout() {
   const logoutButton = document.getElementById("logoutBtn");
   if (!logoutButton) return;
@@ -323,10 +338,11 @@ function setupLogout() {
   });
 }
 
-// The device list is only local data, but the page still needs a login, so we check the session before we show anything.
+// Az oldal indítása. Az eszközlista csak helyi adat, de az oldalhoz így is bejelentkezés kell,
+// ezért előbb megkérdezzük a szervert, hogy a felhasználó be van-e jelentkezve, és csak utána jelenítünk meg bármit.
 async function initializeDevicePage() {
   try {
-    // Show the page only after the server has confirmed the login.
+    // Az oldalt csak azután mutatjuk meg, hogy a szerver megerősítette a bejelentkezést.
     const response = await fetch("/api/auth", { cache: "no-store" });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.authenticated) {
@@ -344,4 +360,5 @@ async function initializeDevicePage() {
   }
 }
 
+// Az oldal indítása.
 initializeDevicePage();
