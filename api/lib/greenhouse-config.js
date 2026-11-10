@@ -1,6 +1,6 @@
-// Description of the sensor fields.
-// The field numbers must match what the ESP32 sends. If the firmware changes, change them here too.
-// The light threshold is a calculation rule, not a target value for any plant species.
+// A szenzormezők leírása: melyik ThingSpeak-mező mit jelent, milyen egységben.
+// A mezők sorszámának egyeznie kell azzal, amit a mikrovezérlő küld. Ha a firmware-ben megváltozik, itt is át kell írni.
+// A fényküszöb számítási szabály (600 lux), nem valamelyik növényfajta célértéke.
 export const GREENHOUSE_CONFIG = Object.freeze({
   controller: "ESP32",
   automationLocation: "local_device",

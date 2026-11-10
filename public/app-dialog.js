@@ -1,17 +1,17 @@
-// Small dialog helper that replaces window.alert and window.confirm.
-// The look follows the AlertDialog of the Flet Studio gallery (Dialogs): title, text and the actions on the right.
-// It uses the native <dialog> element, so the focus stays inside and Esc closes it without extra code.
+// Kis párbeszédablak-segéd, ami a böngésző saját window.alert és window.confirm ablakát váltja ki.
+// A megjelenése a Flet Studio galéria AlertDialog mintáját követi: cím, szöveg, jobbra a gombok.
+// A natív <dialog> elemet használja, ezért a fókusz az ablakban marad, az Esc pedig külön kód nélkül bezárja.
 window.AppDialog = (() => {
-  // Opens a dialog and resolves with true for the confirm button.
-  // Cancel, Esc and a click on the dark background all resolve with false.
+  // Megnyit egy párbeszédablakot, és egy Promise-t ad vissza: true, ha a megerősítő gombra kattintottak.
+  // A Mégse gomb, az Esc és a sötét háttérre kattintás is false értéket ad.
   function open({ title, message, confirmText, cancelText = null }) {
     return new Promise((resolve) => {
       const dialog = document.createElement("dialog");
       dialog.className = "app-dialog";
       dialog.setAttribute("aria-labelledby", "appDialogTitle");
 
-      // Every way of closing goes through finish(), so the promise is resolved exactly once.
-      // We do not wait for the "close" event of the dialog, because it comes a bit later than the click.
+      // Minden bezárási mód a finish() függvényen megy át, így az ígéret (Promise) pontosan egyszer teljesül.
+      // Nem várjuk meg az ablak 'close' eseményét, mert az kicsit később jön, mint a kattintás.
       let finished = false;
       const finish = (value) => {
         if (finished) return;
@@ -21,7 +21,7 @@ window.AppDialog = (() => {
         resolve(value);
       };
 
-      // The texts are set with textContent, so nothing a user typed can become HTML.
+      // A szövegeket textContent-tel állítjuk be, így amit a felhasználó beírt, soha nem válhat HTML-lé.
       const body = document.createElement("div");
       body.className = "app-dialog-body";
       const heading = document.createElement("h2");
@@ -49,11 +49,11 @@ window.AppDialog = (() => {
 
       body.append(heading, text, actions);
       dialog.append(body);
-      // The dialog element itself is only hit when the click lands on the dark background.
+      // Magát a dialog elemet csak akkor találja el a kattintás, ha a sötét háttérre kattintottak.
       dialog.addEventListener("click", (event) => {
         if (event.target === dialog) finish(false);
       });
-      // Esc: the browser closes the dialog by itself, we only need to answer "no".
+      // Esc: az ablakot a böngésző zárja be, nekünk csak a 'nem' választ kell megadnunk.
       dialog.addEventListener("cancel", () => finish(false));
       dialog.addEventListener("close", () => finish(false));
 
