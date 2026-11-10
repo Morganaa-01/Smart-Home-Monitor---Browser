@@ -1,32 +1,47 @@
-# UI example sources
+# UI sources
 
-Updated on 1 November 2026. The Flet Studio Gallery contains runnable Flet/Python examples; it does not provide standalone CSS files for this HTML/CSS/JavaScript project. The project uses selected interaction and visual patterns implemented in its existing web stack, then adapts spacing, colors, contrast, and responsive behavior to the greenhouse dashboard.
+Updated on 10 November 2026. The interface is built from **Tabler** (Open Source edition, MIT license), an HTML/CSS/JavaScript admin template based on Bootstrap 5. The charts are drawn with **ApexCharts**, which is bundled with Tabler.
 
-| Project element | Flet Studio source | Adaptation in this project |
-| --- | --- | --- |
-| City autocomplete | [Input / AutoComplete](https://studio.flet.dev/gallery/input/autocomplete) | Debounced city suggestions, keyboard selection, and selected-location handling for the weather search. |
-| Buttons | [Buttons gallery](https://studio.flet.dev/gallery/buttons) | Filled, outlined, and icon button appearance, recolored to match the greenhouse palette with visible keyboard focus. |
-| Login form fields | [Flet TextField](https://flet.dev/docs/controls/textfield/) | Username and masked password fields with an accessible reveal control based on Flet's password visibility option. |
-| Login panel and submit action | [Flet Card](https://flet.dev/docs/controls/card/), [Flet Button](https://flet.dev/docs/controls/button/), and [Buttons gallery](https://studio.flet.dev/gallery/buttons) | A compact sign-in card and full-width submit button adapted to this HTML/CSS/JavaScript app. |
-| Actuator demo switches | [Input / Switch](https://studio.flet.dev/gallery/input/switch), especially the [Switch example](https://studio.flet.dev/gallery/input/switch/example/controls/material/switch/switch) | Material-style checked and unchecked switch appearance, adapted as UI-only controls for the fan, LED, and greenhouse roof. |
-| ThingSpeak line charts | [Charts gallery](https://studio.flet.dev/gallery/charts), especially [LineChart](https://studio.flet.dev/gallery/charts/linechart) | Dark chart surface, contrasting axes, restrained grid lines, and a greenhouse-green data series. |
-| Sensor and actuator cards | [Layout / Card](https://studio.flet.dev/gallery/layout/card), especially [Music info card](https://studio.flet.dev/gallery/layout/card/example/controls/material/card/music_info) | Consistent card corners and spacing, with distinct icon, label, reading, and switch hierarchy for the greenhouse sensors and devices. |
-| Confirmation and message dialogs | [Flet Studio Gallery](https://studio.flet.dev/gallery), category Dialogs (AlertDialog) | Rounded dialog card with title, text and actions on the right, built with the native `<dialog>` element. It replaces the browser's own `confirm` and `alert` windows (deleting a device, PDF messages). |
+| Item | Details |
+| --- | --- |
+| Package | `@tabler/core` 1.7.3 (npm) |
+| Source | [tabler.io/admin-template](https://tabler.io/admin-template), [github.com/tabler/tabler](https://github.com/tabler/tabler) |
+| License | MIT (the paid Pro and All Package editions are not used) |
+| Location in the project | `public/vendor/tabler/` |
+| Charts | ApexCharts, bundled with Tabler (`public/vendor/tabler/libs/apexcharts/`) |
+| Icons | Google Material Symbols Rounded (not part of Tabler) |
 
-The Flet Studio Gallery does not provide a complete sign-in page, so the login combines reusable field, card, and button patterns. Its sample controls are implemented for this project in HTML, CSS, and JavaScript. The AutoComplete example demonstrates suggestions and separate change/select handling. Its sample is written with Flet's Python API. The greenhouse app's autocomplete was implemented for this project in HTML, CSS, and JavaScript and queries Open-Meteo's geocoding service. The gallery is a design and behavior reference, not a source of drop-in CSS files.
+| Project element | Tabler component |
+| --- | --- |
+| Login page | `page-center`, `card-md`, form controls, input group |
+| Top navigation | `navbar`, `navbar-toggler`, `nav-link` |
+| Page headers | `page-header`, `page-pretitle`, `page-title` |
+| Sensor cards | `card-sm`, `avatar`, `subheader` |
+| Latest data package | `card`, `list-group`, `badge` |
+| Forms and filters | `form-control`, `form-select`, `input-group` |
+| Buttons (including the PDF buttons) | `btn`, `btn-primary`, `btn-icon`, `btn-list` |
+| Actuator demo switches | `form-switch` |
+| City suggestions, activity log, editor lists | `list-group`, `list-group-item` |
+| Status messages | `alert`, `badge` |
+| Confirmation and message dialogs | native `<dialog>` element with Tabler colors and `btn` buttons |
+| ThingSpeak history charts | ApexCharts `area` charts |
+
+## Project-specific parts
+
+These parts have no ready-made Tabler component. They are styled in `public/app.css` with Tabler CSS variables:
+
+- the grids of the sensor cards, devices and charts,
+- the AI chat window and its message bubbles,
+- the drag and drop editor lists for cards and chart tiles,
+- the chart tiles, including the add and remove controls,
+- the weather city suggestions list.
+
+See [docs/TABLER-UI.md](docs/TABLER-UI.md) for the full description of the interface (in Hungarian).
+
+## External services
 
 The weather card uses Open-Meteo for forecasts and its name-based geocoding API. For browser-detected coordinates, it uses [OpenStreetMap Nominatim reverse geocoding](https://nominatim.openstreetmap.org/) to display the nearest available place name. The Nominatim use is initiated only after the user requests their location; attribution and a link to the [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/) are shown in the weather card. Keep usage user-initiated and within the service's published request limits.
 
-## Elements that are not taken from the gallery
+## Thesis references
 
-These parts of the interface are our own design. The gallery has no direct match, or it was not used:
-
-- Top navigation and the dropdown menu on small screens (the gallery has a Navigation category, but it was not used here).
-- The AI chat window and its message bubbles.
-- Status badges, the activity log and the weather card layout.
-- Date and time inputs and the select of the chart filter (native HTML controls, only recolored).
-- The drag and drop editor lists for cards and chart tiles.
-
-The gallery examples are Flet (Python/Flutter) apps. They cannot be copied into an HTML/CSS/JavaScript project, so every element above and in the table is a re-implementation of the look, not copied code.
-
-For thesis references, cite the specific example pages above and describe the resulting controls as adaptations implemented in the project's web technologies. Record the access date for each reference in the thesis bibliography.
+Cite Tabler (version, license, access date) and ApexCharts, and describe the resulting interface as built from these components. Record the access date for each reference in the thesis bibliography.

@@ -1,5 +1,5 @@
 // Kis párbeszédablak-segéd, ami a böngésző saját window.alert és window.confirm ablakát váltja ki.
-// A megjelenése a Flet Studio galéria AlertDialog mintáját követi: cím, szöveg, jobbra a gombok.
+// A megjelenése a Tabler színeit, kártya-törzsét és gombjait használja: cím, szöveg, jobbra a gombok.
 // A natív <dialog> elemet használja, ezért a fókusz az ablakban marad, az Esc pedig külön kód nélkül bezárja.
 window.AppDialog = (() => {
   // Megnyit egy párbeszédablakot, és egy Promise-t ad vissza: true, ha a megerősítő gombra kattintottak.
@@ -26,23 +26,24 @@ window.AppDialog = (() => {
       body.className = "app-dialog-body";
       const heading = document.createElement("h2");
       heading.id = "appDialogTitle";
+      heading.className = "h3";
       heading.textContent = title;
       const text = document.createElement("p");
       text.textContent = message;
       const actions = document.createElement("div");
-      actions.className = "app-dialog-actions";
+      actions.className = "app-dialog-actions mt-4";
 
       if (cancelText) {
         const cancelButton = document.createElement("button");
         cancelButton.type = "button";
-        cancelButton.className = "button secondary";
+        cancelButton.className = "btn";
         cancelButton.textContent = cancelText;
         cancelButton.addEventListener("click", () => finish(false));
         actions.append(cancelButton);
       }
       const confirmButton = document.createElement("button");
       confirmButton.type = "button";
-      confirmButton.className = "button primary";
+      confirmButton.className = "btn btn-primary";
       confirmButton.textContent = confirmText;
       confirmButton.addEventListener("click", () => finish(true));
       actions.append(confirmButton);
