@@ -144,6 +144,8 @@ window.GreenhouseReport = (() => {
     text("Mérés időpontja: " + report.measuredAt, margin, y += 70, 26);
     text("Jelentés készítése: " + report.exportedAt, margin, y += 42, 26);
     text(report.status, margin, y += 42, 26, "bold");
+    // Only set when the charts are in the PDF, so page 1 also says which period the charts show.
+    if (report.periodLabel) text(report.periodLabel, margin, y += 42, 26);
     text("Mérések és eszközállapotok", margin, y += 90, 34, "bold");
 
     const deviceX = margin + 520;
@@ -298,8 +300,10 @@ window.GreenhouseReport = (() => {
   // options.charts (SVG elements of the page) and options.periodLabel add the history charts after page 1.
   async function createFile(entry, options = {}) {
     const report = buildReport({ ...entry });
+    const withCharts = Array.isArray(options.charts) && options.charts.length > 0;
+    if (withCharts) report.periodLabel = options.periodLabel || "";
     const pages = [toPage(drawReport(report))];
-    if (Array.isArray(options.charts) && options.charts.length) {
+    if (withCharts) {
       for (const canvas of await drawChartPages(options.charts, options.periodLabel || "")) pages.push(toPage(canvas));
     }
     return new File([createPdf(pages)], fileName(entry), { type: "application/pdf" });

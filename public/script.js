@@ -258,6 +258,12 @@ function formatCompactBudapestTime(value) {
 
 // A datetime-local value looks like 2026-11-07T15:33. We cut it up with a regex instead of new Date(),
 // so the time zone of the browser cannot shift the hour.
+// 2026-09-03T19:33 -> "2026. 09. 03. 19:33", the usual Hungarian way, with the year (used in the PDF).
+function formatFullDateTimeInput(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value || "");
+  return match ? `${match[1]}. ${match[2]}. ${match[3]}. ${match[4]}:${match[5]}` : value;
+}
+
 function formatCompactDateTimeInput(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value || "");
   return match ? `${match[3]}.${match[2]}. ${match[4]}:${match[5]}` : value;
@@ -766,6 +772,7 @@ async function loadChartHistory({ quiet = false } = {}) {
   try {
     let params;
     let rangeLabel;
+    let periodText;
     if (chartCustomRangeActive) {
       const start = $("chartStartDate").value;
       const end = $("chartEndDate").value;
@@ -774,10 +781,12 @@ async function loadChartHistory({ quiet = false } = {}) {
       }
       params = new URLSearchParams({ start, end });
       rangeLabel = `${formatCompactDateTimeInput(start)}–${formatCompactDateTimeInput(end)}`;
+      periodText = `${formatFullDateTimeInput(start)} – ${formatFullDateTimeInput(end)}`;
     } else {
       const [rangeType, rangeValue] = rangeSelect.value.split(":");
       params = new URLSearchParams({ [rangeType]: rangeValue });
       rangeLabel = rangeSelect.selectedOptions[0]?.textContent || "kiválasztott időszak";
+      periodText = rangeLabel;
     }
 
     const response = await fetch(`/api/thingspeak?${params.toString()}`, { cache: "no-store" });
@@ -789,7 +798,8 @@ async function loadChartHistory({ quiet = false } = {}) {
     // Kept for the PDF report. The charts themselves are taken from the page.
     // The default view is the last 60 measurements. Anything else counts as a filter.
     state.chartFiltered = chartCustomRangeActive || rangeSelect.value !== "results:60";
-    state.chartPeriodLabel = `${rangeLabel} · ${new Intl.NumberFormat("hu-HU").format(feeds.length)} mérési pont`;
+    // This text goes into the PDF, so the period is written out in full, with the year.
+    state.chartPeriodLabel = `Szűrt időszak: ${periodText} · ${new Intl.NumberFormat("hu-HU").format(feeds.length)} mérési pont`;
     state.lastChartFetchedAt = new Date();
     const latestMeasurement = feeds.at(-1)?.created_at;
     const periodSummary = chartCustomRangeActive
