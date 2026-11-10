@@ -204,11 +204,14 @@ function editDevice(index) {
 }
 
 // There is no undo, so the confirm dialog is the only safety.
-function deleteDevice(index) {
+async function deleteDevice(index) {
   // Ask for confirmation before deleting, because the device is removed from the saved list.
   if (!devices[index]) return;
 
-  const confirmed = window.confirm("Biztosan törlöd ezt az eszközt?");
+  const confirmed = await window.AppDialog.confirm("Biztosan törlöd ezt az eszközt?", {
+    title: "Eszköz törlése",
+    confirmText: "Törlés"
+  });
   if (!confirmed) return;
 
   devices.splice(index, 1);
