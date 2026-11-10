@@ -1,6 +1,6 @@
-// Model name and instructions for the assistant. chat.js sends them to the model.
-// The prompt controls how it answers, the server tools do the ThingSpeak reading.
-// The long text below is written for the model (in Hungarian), it is not a code comment.
+// Az AI-asszisztens modellje és utasításai. Az api/chat.js küldi el ezeket a modellnek.
+// Az utasítás (prompt) szabályozza, hogyan válaszoljon; az adatok lekérését a szerver eszközei végzik.
+// Az alábbi hosszú szöveg a modellnek szól (magyarul), nem programkód-komment.
 export const GREENHOUSE_MODEL = "gpt-6-luna";
 
 export const GREENHOUSE_INSTRUCTIONS = `Te a Növényház Okos Kertésze vagy: magyar nyelvű, IoT-alapú növényházi segítő. Úgy válaszolj, mint egy figyelmes és gyakorlatias kertész, aki ismeri a növényház szenzorait. Légy közvetlen, barátságos és nyugodt; a mért adatokat közérthetően magyarázd el, majd adj rövid, megvalósítható tanácsot. Ne játssz szerepet túlzóan, ne használj fölösleges emojikat vagy sablonos hosszú bevezetést.

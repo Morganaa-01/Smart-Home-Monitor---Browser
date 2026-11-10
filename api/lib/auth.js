@@ -1,12 +1,14 @@
-// Shared login helpers for the protected API routes.
-// The session is a signed cookie, so there is no database. The signature only detects changes
-// (the content is not encrypted), so a password or API key must never go into the cookie.
+// Közös bejelentkezési segédfüggvények minden védett API-hoz.
+// A munkamenetet egy aláírt süti (cookie) tárolja, ezért nincs hozzá külön adatbázis.
+// Az aláírás csak azt veszi észre, ha valaki átírta a süti tartalmát, de nem titkosítja azt.
+// Ezért jelszót vagy API-kulcsot soha nem teszünk a sütibe.
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 const COOKIE_NAME = "greenhouse_session";
 const SESSION_SECONDS = 8 * 60 * 60;
 
-// Credentials and the cookie secret come from the server settings only.
+// Beolvassa a belépéshez szükséges beállításokat a szerver környezeti változóiból (felhasználónév, jelszó, titkos kulcs).
+// Ha bármelyik hiányzik, vagy a titkos kulcs rövidebb 32 karakternél, null-t ad: ilyenkor a belépés nincs beállítva.
 function getAuthSettings() {
   const username = process.env.ADMIN_USERNAME;
   const password = process.env.ADMIN_PASSWORD;
@@ -19,20 +21,22 @@ function getAuthSettings() {
   return { username, password, sessionSecret };
 }
 
-// Comparing hashes of equal length avoids leaking information through timing.
+// Két szöveg biztonságos összehasonlítása. Előbb mindkettőből hash-t (ujjlenyomatot) készít, így azonos hosszúak lesznek,
+// és az összehasonlítás ideje nem árulja el, hogy hány karakter egyezett. Így a jelszót nem lehet 'kitalálni' az időmérésből.
 function secureEquals(left, right) {
   const leftHash = createHash("sha256").update(left).digest();
   const rightHash = createHash("sha256").update(right).digest();
   return timingSafeEqual(leftHash, rightHash);
 }
 
-// HMAC with the server secret, so only the server can make a valid cookie.
+// Aláírást készít a sütihez a szerver titkos kulcsával (HMAC-SHA256).
+// Csak a szerver ismeri a kulcsot, ezért csak ő tud érvényes aláírást készíteni, és észreveszi, ha valaki átírta a sütit.
 function sign(payload, secret) {
-  // The signature lets us notice if someone edited the cookie.
+  // Az aláírásból később észrevesszük, ha valaki átírta a süti tartalmát.
   return createHmac("sha256", secret).update(payload).digest("base64url");
 }
 
-// Tiny parser for one cookie, so we do not need an extra package for it.
+// Kikeresi a kérésből a munkamenet-sütit. Egyetlen sütihez nem érdemes külön csomagot telepíteni, ezért kicsi saját megoldás.
 function getCookie(req) {
   const cookies = req.headers.cookie || "";
   const item = cookies.split(";").map((part) => part.trim())
@@ -40,7 +44,8 @@ function getCookie(req) {
   return item ? item.slice(COOKIE_NAME.length + 1) : "";
 }
 
-// The signature is checked first and the content is read only after that, so unsigned data is never parsed.
+// Megmondja, hogy a kérést küldő felhasználó be van-e jelentkezve (true/false).
+// Először az aláírást ellenőrzi, és csak utána olvassa ki a süti tartalmát, így aláíratlan adattal nem dolgozunk.
 export function isAuthenticated(req) {
   const settings = getAuthSettings();
   if (!settings) return false;
@@ -48,7 +53,7 @@ export function isAuthenticated(req) {
   const [payload, signature, extra] = getCookie(req).split(".");
   if (!payload || !signature || extra) return false;
 
-  // Accept only a valid signature and a session that has not expired.
+  // Csak érvényes aláírású és még le nem járt munkamenetet fogadunk el.
   const expected = Buffer.from(sign(payload, settings.sessionSecret), "base64url");
   const supplied = Buffer.from(signature, "base64url");
   if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return false;
@@ -61,14 +66,16 @@ export function isAuthenticated(req) {
   }
 }
 
-// Returns false after sending a 401, so the caller must return right away.
+// Védett végpontok elején használjuk. Ha a felhasználó nincs bejelentkezve, 401-es hibát küld, és false-t ad vissza.
+// A hívó függvénynek ilyenkor azonnal ki kell lépnie (return), különben a védett kód mégis lefutna.
 export function requireAuthentication(req, res) {
   if (isAuthenticated(req)) return true;
   res.status(401).json({ error: "Bejelentkezés szükséges.", code: "authentication_required" });
   return false;
 }
 
-// Both comparisons always run (no early return), so the response time does not show which one was wrong.
+// Ellenőrzi a beírt felhasználónevet és jelszót a beállított értékekkel.
+// A két összehasonlítás mindig mindkettő lefut (nincs korai kilépés), így a válasz ideje nem mutatja, melyik volt hibás.
 export function verifyCredentials(username, password) {
   const settings = getAuthSettings();
   if (!settings) return { configured: false, valid: false };
@@ -84,9 +91,10 @@ export function verifyCredentials(username, password) {
   };
 }
 
-// Expiry is stored in milliseconds but Max-Age is in seconds, so we convert.
+// Elkészíti a munkamenet-sütit: a felhasználónév és a lejárati idő base64-be kódolva, mögötte az aláírás.
+// A lejárat ezredmásodpercben van tárolva, a Max-Age viszont másodpercben kell, ezért kell átváltani.
 export function createSessionCookie(username, sessionSecret, req) {
-  // HttpOnly cookie, it expires after eight hours.
+  // HttpOnly süti (JavaScript nem olvashatja), nyolc óra után lejár.
   const payload = Buffer.from(JSON.stringify({
     user: username,
     expiresAt: Date.now() + SESSION_SECONDS * 1000
@@ -99,7 +107,7 @@ export function createSessionCookie(username, sessionSecret, req) {
   return `${COOKIE_NAME}=${payload}.${signature}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_SECONDS}${secureFlag}`;
 }
 
-// Logout: the same cookie with Max-Age=0, the browser deletes it.
+// Kijelentkezéshez: ugyanaz a süti Max-Age=0 értékkel, így a böngésző azonnal törli.
 export function expiredSessionCookie() {
   return `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`;
 }
