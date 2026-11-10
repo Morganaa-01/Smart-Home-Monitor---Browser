@@ -1,5 +1,5 @@
-// Shared ThingSpeak client: builds the URL, fetches the feeds and throws one kind of error.
-// The dashboard and the AI both use it, so network and format errors are handled in one place.
+// Közös ThingSpeak-kapcsolat: összeállítja a lekérdezést, letölti a méréseket, és hiba esetén egységes hibát dob.
+// A felület és az AI-chat is ezt használja, ezért a hálózati és adatformátum-hibákat egy helyen kezeljük.
 const DEFAULT_CHANNEL_ID = "3560978";
 const MAX_RESULTS = 8000;
 
@@ -12,10 +12,14 @@ export class ThingSpeakError extends Error {
   }
 }
 
-// The default channel ID is only a fallback. A different channel and a Read API key come from environment variables.
-// 8000 is the maximum number of records ThingSpeak gives in one request.
+// Lekéri a méréseket a ThingSpeak csatornából. Háromféleképpen kérhetünk adatot:
+//   - results: az utolsó N rekord,
+//   - days: az utolsó N nap,
+//   - start és end: egy megadott időszak.
+// A csatorna azonosítója és az olvasási kulcs a szerver környezeti változóiból jön. A kulcs nem kerül ki a böngészőbe.
+// Az alapértelmezett csatornaazonosító csak tartalék. A 8000 a ThingSpeak által egy kérésre adható legtöbb rekord.
 export async function fetchThingSpeakFeeds({ results = 60, days, start, end } = {}) {
-  // Channel settings come from the server environment variables.
+  // A csatorna adatait a szerver környezeti változóiból olvassuk.
   const channelId = process.env.THINGSPEAK_CHANNEL_ID || DEFAULT_CHANNEL_ID;
   const readApiKey = process.env.THINGSPEAK_READ_API_KEY;
 
@@ -23,7 +27,7 @@ export async function fetchThingSpeakFeeds({ results = 60, days, start, end } = 
   if (readApiKey) url.searchParams.set("api_key", readApiKey);
   url.searchParams.set("timezone", "UTC");
 
-  // A request has a time range, a number of days or a number of records.
+  // Egy kérésben időszak, napok száma vagy rekordok száma szerepel.
   if (start && end) {
     url.searchParams.set("start", start);
     url.searchParams.set("end", end);
@@ -41,7 +45,7 @@ export async function fetchThingSpeakFeeds({ results = 60, days, start, end } = 
 
   let response;
   try {
-    // The API key stays on the server and never reaches the browser.
+    // Az API-kulcs a szerveren marad, a böngésző nem látja.
     response = await fetch(url, { cache: "no-store" });
   } catch (error) {
     throw new ThingSpeakError(
