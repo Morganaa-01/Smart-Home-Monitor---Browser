@@ -1713,3 +1713,43 @@ body.homepage-editing .chart-add-tile {
     flex-direction: column;
   }
 }
+
+/* Dialog based on the Flet AlertDialog (Dialogs in the gallery): rounded card, title, text and actions on the right. */
+.app-dialog {
+  width: min(92vw, 420px);
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 28px;
+  background: var(--surface);
+  color: var(--text-color);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+}
+
+.app-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.48);
+}
+
+.app-dialog-body {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.5rem 1.5rem 1.25rem;
+}
+
+.app-dialog-body h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.app-dialog-body p {
+  margin: 0;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.app-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
