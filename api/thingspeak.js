@@ -1,6 +1,6 @@
-// A mérések szerveroldali végpontja (/api/thingspeak): a kártyák és a grafikonok innen kapják az adatot.
-// A böngészőből érkező szűrőket a ThingSpeak-kérés előtt ellenőrizzük. A dátummezők nem tartalmaznak időzónát,
-// ezért a szerver számolja át a megadott budapesti időt UTC-re (a ThingSpeak UTC-ben dolgozik).
+// Mérések végpontja (/api/thingspeak): a kártyák és a grafikonok innen kapják az adatot.
+// A böngészőből jövő szűrőket a ThingSpeak-kérés előtt ellenőrizzük.
+// A dátummezők nem tartalmaznak időzónát, ezért a szerver számolja át a budapesti időt UTC-re (a ThingSpeak UTC-ben dolgozik).
 import { fetchThingSpeakFeeds, ThingSpeakError } from "./lib/thingspeak.js";
 import { requireAuthentication } from "./lib/auth.js";
 
@@ -16,9 +16,8 @@ const BUDAPEST_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23"
 });
 
-// A böngésző dátum- és időmezőjének értékét (pl. 2026-11-08T19:33) Date objektummá alakítja, budapesti időnek tekintve.
-// A mező nem tartalmaz időzónát, ezért itt számoljuk hozzá a budapesti eltolást (nyáron +2 óra, télen +1 óra).
-// Hibás vagy nem létező időpontnál null-t ad vissza.
+// Dátummező értéke (pl. 2026-11-08T19:33) -> Date, budapesti időnek véve.
+// Nyáron +2, télen +1 óra az eltolás, ezt itt számoljuk hozzá. Hibás vagy nem létező időpontnál null a visszatérési érték.
 function parseBudapestDateTime(value) {
   if (typeof value !== "string") return null;
   const match = BUDAPEST_DATE_TIME_PATTERN.exec(value);
@@ -34,7 +33,7 @@ function parseBudapestDateTime(value) {
     || calendarCheck.getUTCDate() !== day) return null;
 
   let timestamp = localAsUtc;
-  // Az UTC-eltolás évszaktól függ, ezért addig számolunk újra, amíg az óra és a perc nem egyezik.
+  // Az eltolás évszaktól függ, ezért addig számolunk újra, amíg az óra és a perc nem egyezik.
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const parts = Object.fromEntries(BUDAPEST_DATE_TIME_FORMATTER.formatToParts(new Date(timestamp))
       .filter(({ type }) => type !== "literal")
@@ -51,7 +50,7 @@ function parseBudapestDateTime(value) {
   const resolved = Object.fromEntries(BUDAPEST_DATE_TIME_FORMATTER.formatToParts(new Date(timestamp))
     .filter(({ type }) => type !== "literal")
     .map(({ type, value: part }) => [type, part]));
-  // Ez a végső ellenőrzés kiszűri a nem létező helyi időket is (például az óraátállításkor kimaradó órát).
+  // Ez az ellenőrzés kiszűri a nem létező időket is (pl. óraátállításkor kimaradó óra).
   if (Number(resolved.year) !== year
     || Number(resolved.month) !== month
     || Number(resolved.day) !== day
@@ -61,8 +60,7 @@ function parseBudapestDateTime(value) {
   return new Date(timestamp);
 }
 
-// A végpont fő függvénye. Sorrend: bejelentkezés ellenőrzése, kérés módszerének és paramétereinek ellenőrzése,
-// és csak ezután kérjük le a ThingSpeak adatait. Így hibás bemenet sosem jut el a ThingSpeakig.
+// A végpont fő függvénye. Sorrend: bejelentkezés, módszer és paraméterek ellenőrzése, és csak utána kérjük le az adatot, így hibás bemenet nem jut el a ThingSpeakig.
 export default async function handler(req, res) {
   // A mérési előzményeket csak bejelentkezett felhasználó kérheti le.
   if (!requireAuthentication(req, res)) return;
@@ -71,8 +69,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed. Use GET." });
   }
 
-  // Ellenőrizzük a lekérdezés paramétereit, hogy hibás időszaknál érthető hibaüzenetet adhassunk.
-  // Háromféle időszak lehet: utolsó minták, utolsó napok vagy egyéni dátumhatárok.
+  // Paraméterek ellenőrzése, hogy hibánál érthető üzenetet adjunk. Háromféle időszak lehet: utolsó minták, utolsó napok vagy egyéni dátumhatárok.
   const hasDays = req.query?.days !== undefined;
   const hasStart = req.query?.start !== undefined;
   const hasEnd = req.query?.end !== undefined;

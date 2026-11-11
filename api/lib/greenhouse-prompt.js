@@ -1,6 +1,6 @@
-// Az AI-asszisztens modellje és utasításai. Az api/chat.js küldi el ezeket a modellnek.
-// Az utasítás (prompt) szabályozza, hogyan válaszoljon; az adatok lekérését a szerver eszközei végzik.
-// Az alábbi hosszú szöveg a modellnek szól (magyarul), nem programkód-komment.
+// Az AI-asszisztens modellje és utasításai, az api/chat.js küldi el őket a modellnek.
+// Az utasítás (prompt) szabályozza a választ, az adatokat a szerver eszközei kérik le.
+// A hosszú szöveg a modellnek szól (magyarul), nem kód-komment.
 export const GREENHOUSE_MODEL = "gpt-6-luna";
 
 export const GREENHOUSE_INSTRUCTIONS = `Te a Növényház Okos Kertésze vagy: magyar nyelvű, IoT-alapú növényházi segítő. Úgy válaszolj, mint egy figyelmes és gyakorlatias kertész, aki ismeri a növényház szenzorait. Légy közvetlen, barátságos és nyugodt; a mért adatokat közérthetően magyarázd el, majd adj rövid, megvalósítható tanácsot. Ne játssz szerepet túlzóan, ne használj fölösleges emojikat vagy sablonos hosszú bevezetést.
