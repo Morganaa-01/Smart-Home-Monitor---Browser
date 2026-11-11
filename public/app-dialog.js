@@ -1,17 +1,15 @@
-// Kis párbeszédablak-segéd, ami a böngésző saját window.alert és window.confirm ablakát váltja ki.
-// A megjelenése a Tabler színeit, kártya-törzsét és gombjait használja: cím, szöveg, jobbra a gombok.
-// A natív <dialog> elemet használja, ezért a fókusz az ablakban marad, az Esc pedig külön kód nélkül bezárja.
+// Egyszerű párbeszédablak a böngésző alert és confirm ablaka helyett.
+// A natív <dialog> elemet használjuk, ezért a fókusz az ablakban marad, az Esc pedig magától bezárja.
 window.AppDialog = (() => {
-  // Megnyit egy párbeszédablakot, és egy Promise-t ad vissza: true, ha a megerősítő gombra kattintottak.
-  // A Mégse gomb, az Esc és a sötét háttérre kattintás is false értéket ad.
+  // Megnyit egy ablakot, és Promise-t ad vissza: true, ha a megerősítő gombra kattintottak.
+  // Mégse, Esc vagy a háttérre kattintás esetén false.
   function open({ title, message, confirmText, cancelText = null }) {
     return new Promise((resolve) => {
       const dialog = document.createElement("dialog");
       dialog.className = "app-dialog";
       dialog.setAttribute("aria-labelledby", "appDialogTitle");
 
-      // Minden bezárási mód a finish() függvényen megy át, így az ígéret (Promise) pontosan egyszer teljesül.
-      // Nem várjuk meg az ablak 'close' eseményét, mert az kicsit később jön, mint a kattintás.
+      // Minden bezárás a finish()-en megy át, így a Promise csak egyszer teljesül.
       let finished = false;
       const finish = (value) => {
         if (finished) return;
@@ -21,7 +19,7 @@ window.AppDialog = (() => {
         resolve(value);
       };
 
-      // A szövegeket textContent-tel állítjuk be, így amit a felhasználó beírt, soha nem válhat HTML-lé.
+      // A szöveget textContent-tel állítjuk be, így nem lehet belőle HTML.
       const body = document.createElement("div");
       body.className = "app-dialog-body";
       const heading = document.createElement("h2");
@@ -50,11 +48,11 @@ window.AppDialog = (() => {
 
       body.append(heading, text, actions);
       dialog.append(body);
-      // Magát a dialog elemet csak akkor találja el a kattintás, ha a sötét háttérre kattintottak.
+      // A dialog elemre kattintás = a háttérre kattintottak.
       dialog.addEventListener("click", (event) => {
         if (event.target === dialog) finish(false);
       });
-      // Esc: az ablakot a böngésző zárja be, nekünk csak a 'nem' választ kell megadnunk.
+      // Esc: a böngésző zárja be, nekünk csak a 'nem' választ kell visszaadni.
       dialog.addEventListener("cancel", () => finish(false));
       dialog.addEventListener("close", () => finish(false));
 

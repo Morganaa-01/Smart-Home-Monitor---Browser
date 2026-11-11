@@ -1,23 +1,20 @@
-// Az AI-chat végpontja (/api/chat). Lépések: bejelentkezés és bemenet ellenőrzése, szükség esetén a mérések lekérése,
-// végül az AI megfogalmazza a választ. Az AI csak azokat az eszközöket használhatja, amelyeket a szerver engedélyez.
-// A számításokat lehetőleg a kód végzi, a modell csak értelmezi és érthetően elmondja az eredményt.
-// Az 'utolsó eső' kérdésre külön ág van, ahol a választ a kód állítja össze, nem a modell.
+// AI-chat végpont (/api/chat). Lépések: bejelentkezés és bemenet ellenőrzése, szükség esetén mérések lekérése, végül az AI megfogalmazza a választ.
+// Az AI csak azokat az eszközöket használhatja, amiket a szerver engedélyez. A számolást lehetőleg a kód végzi, a modell csak elmondja az eredményt.
+// Az 'utolsó eső' kérdésre külön ág van, ott a választ a kód állítja össze.
 import { GREENHOUSE_TOOLS, runGreenhouseTool } from "./lib/greenhouse-tools.js";
 import { GREENHOUSE_INSTRUCTIONS, GREENHOUSE_MODEL } from "./lib/greenhouse-prompt.js";
 import { requireAuthentication } from "./lib/auth.js";
 
-// Az OpenAI Responses API címe, ide küldjük a kérdéseket.
+// OpenAI Responses API címe.
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
-// Legfeljebb ennyi eszközhívási kört engedünk egy válaszhoz (ez véd a végtelen ciklus ellen).
+// Legfeljebb ennyi eszközhívási kör egy válaszhoz (végtelen ciklus ellen).
 const MAX_TOOL_ROUNDS = 4;
-// Ennyiszer próbáljuk meg elküldeni a kérést az OpenAI-nak, ha átmeneti hiba van.
+// Ennyiszer próbáljuk újra a kérést, ha átmeneti hiba van.
 const MAX_OPENAI_ATTEMPTS = 3;
 
-// Elküldi a kérést az OpenAI-nak, és átmeneti hiba esetén újra próbálja.
-// Az OpenAI időnként 503-as 'server_is_overloaded' hibát ad, ami általában egy-két másodperc múlva elmúlik.
-// Az újrapróbálkozással a felhasználó nem lát hibát egy rövid kiesés miatt. Más hibát változtatás nélkül visszaadunk.
+// Kérés küldése az OpenAI-nak, átmeneti hibánál újrapróbálás. Az OpenAI néha 503-as 'server_is_overloaded' hibát ad, ez pár másodperc múlva elmúlik. Más hibát változtatás nélkül visszaadunk.
 async function fetchOpenAIWithRetry(apiKey, body) {
-  // Hálózati hiba vagy átmeneti OpenAI-túlterhelés esetén várunk egy kicsit, majd újra próbáljuk.
+  // Hálózati hibánál vagy túlterheltségnél várunk egy kicsit, aztán újra próbáljuk.
   for (let attempt = 0; attempt < MAX_OPENAI_ATTEMPTS; attempt += 1) {
     try {
       const response = await fetch(OPENAI_RESPONSES_URL, {
@@ -32,7 +29,7 @@ async function fetchOpenAIWithRetry(apiKey, body) {
       if (response.status === 503 && attempt < MAX_OPENAI_ATTEMPTS - 1) {
         const errorBody = await response.clone().json().catch(() => ({}));
         if (errorBody.error?.code === "server_is_overloaded") {
-          // Ha a szolgáltatás megadja a várakozási időt, azt követjük, különben minden próbánál egyre többet várunk.
+          // Ha a szolgáltatás megadja a várakozási időt, azt követjük, különben próbálkozásonként egyre többet várunk.
           const retryAfter = Number(response.headers.get("retry-after"));
           const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
             ? Math.min(retryAfter * 1000, 5000)
@@ -55,10 +52,9 @@ async function fetchOpenAIWithRetry(apiKey, body) {
   }
 }
 
-// Egyszerű kulcsszavas vizsgálat (nem kell hozzá külön AI-hívás): megállapítja, hogy a kérdés múltbeli adatokra vonatkozik-e.
-// Időt jelző szó ÉS növényházi adatot jelző szó is kell hozzá, így a 'milyen idő van ma?' kérdés nem indít ThingSpeak-lekérdezést.
+// Kulcsszavas vizsgálat (nem kell hozzá AI-hívás): múltbeli adatról van-e szó. Időt jelző ÉS növényházi adatot jelző szó is kell, így a 'milyen idő van ma?' nem indít ThingSpeak-lekérést.
 function isHistoricalDataQuestion(message) {
-  // Múltbeli adatra vonatkozó kérdésnél előre lekérjük a ThingSpeak adatait, hogy az AI ne találgasson.
+  // Múltbeli kérdésnél előre lekérjük az adatokat, hogy az AI ne találgasson.
   if (isLastRainQuestion(message)) return true;
   if (extractBudapestDates(message).length > 0) return true;
   const asksAboutTime = /tegnap\w*|tegnapelőtt\w*|ma\w*|elmúlt\w*|utolsó\w*|trend\w*|átlag\w*|minimum\w*|maximum\w*|változás\w*|összehasonlít\w*|időbeli\w*/i.test(message);
@@ -66,18 +62,16 @@ function isHistoricalDataQuestion(message) {
   return asksAboutTime && asksAboutGreenhouseData;
 }
 
-// Megállapítja, hogy a kérdés az utolsó esőre vonatkozik-e ('mikor esett utoljára?').
-// Ezt a kódunk válaszolja meg, nem a modell, így a dátum és az időtartam közvetlenül a mért adatból jön.
+// Az utolsó esőre kérdez-e ('mikor esett utoljára?'). Ezt a kód válaszolja meg, nem a modell, így a dátum és az időtartam a mért adatból jön.
 function isLastRainQuestion(message) {
-  // Eltávolítjuk az ékezeteket, és az egész üzenetet vizsgáljuk, így egy köszönés a mondat elején nem zavar be.
+  // Ékezetek nélkül és az egész üzenetet vizsgáljuk, így a mondat elején lévő köszönés nem zavar.
   const normalized = message.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
   return /mikor\w*|utoljara\w*|legutobb\w*/i.test(normalized) && /eso\w*|rain\w*/i.test(normalized);
 }
 
-// Kikeresi a kérdésből a dátumokat, például 'október 30-án' -> 2026-10-30. Csak magyar hónapneveket ismer, mert a chat magyar.
-// Ha a felhasználó nem ír évet, az aktuális évet vesszük. Visszaadja a talált napok rendezett, ismétlődés nélküli listáját.
+// Dátumok kikeresése a kérdésből, pl. 'október 30-án' -> 2026-10-30. Csak magyar hónapneveket ismer. Ha nincs év, az aktuálisat vesszük. A visszaadott lista rendezett és nincs benne ismétlődés.
 export function extractBudapestDates(message) {
-  // A magyar hónapneveket konkrét naptári napokká alakítjuk (budapesti idő szerint).
+  // Magyar hónapnevek -> konkrét napok (budapesti idő szerint).
   const normalized = message.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
   const monthNumbers = {
     januar: "01", februar: "02", marcius: "03", aprilis: "04", majus: "05", junius: "06",
@@ -97,10 +91,9 @@ export function extractBudapestDates(message) {
   return [...new Set(dates)].sort();
 }
 
-// A felhasználó által megnevezett napokra külön-külön összefoglalót kér le, hogy az AI csak ezekről a napokról beszéljen.
-// A mintákat (samples) kivesszük az összefoglalóból, hogy a modellnek küldött szöveg rövid maradjon.
+// A megnevezett napokra külön összefoglalót kérünk, hogy az AI csak róluk beszéljen. A mintákat (samples) kivesszük, hogy rövid maradjon a szöveg.
 async function getRequestedDaySummaries(dates) {
-  // Minden megnevezett napot külön kérdezünk le, a közbeeső napokat nem vesszük bele.
+  // Minden megnevezett napot külön kérdezünk le, a közbeesőket nem.
   const days = await Promise.all(dates.map(async (date) => {
     const result = await runGreenhouseTool("get_sensor_history", {
       hours: null,
@@ -131,10 +124,9 @@ async function getRequestedDaySummaries(dates) {
   };
 }
 
-// Összefoglalót készít az utolsó eső jelzéséről az elmúlt 30 napból (720 óra).
-// A 30 nap kompromisszum: elég hosszú ahhoz, hogy megtalálja az utolsó esőt, de belefér a ThingSpeak rekordkorlátjába.
+// Összefoglaló az utolsó eső jelzéséről az elmúlt 30 napból (720 óra). A 30 nap kompromisszum: elég hosszú az utolsó eső megtalálásához, de belefér a ThingSpeak rekordkorlátjába.
 async function getLastRainSummary() {
-  // Az elmúlt 30 napban keressük a legutóbbi esőjelzést.
+  // Az utolsó 30 napban keressük a legutóbbi esőjelzést.
   const result = await runGreenhouseTool("get_sensor_history", {
     hours: 720,
     start_date: null,
@@ -157,10 +149,9 @@ async function getLastRainSummary() {
   };
 }
 
-// Magyar mondatot ír az utolsó esőről a mérésekből. Ezt a szöveget a kód állítja össze, nem a modell,
-// ezért az utasítás (prompt) átírása erre az ágra nincs hatással.
+// Magyar mondat az utolsó esőről a mérésekből. Ezt a kód állítja össze, ezért a prompt átírása erre az ágra nincs hatással.
 function formatLastRainReply(summary) {
-  // Ezt a rövid választ a szerver állítja össze a mérésekből, a modell nem találhatja ki.
+  // Ezt a választ a szerver állítja össze, a modell nem találhatja ki.
   if (!summary.total_samples) {
     return "A lekért időszakban nincs esőérzékelő-adat.";
   }
@@ -199,8 +190,7 @@ function formatLastRainReply(summary) {
   return "Az érzékelő " + startTime + " és " + endTime + " között jelzett esőt, körülbelül " + duration + " hosszan. A csapadék mennyiségét nem méri.";
 }
 
-// Megtisztítja a böngészőtől kapott korábbi beszélgetést: csak felhasználói és asszisztensi szöveget fogadunk el,
-// legfeljebb 2000 karakteres üzenetekkel, és csak az utolsó 12-t tartjuk meg. A böngésző nem küldhet rendszerutasítást vagy eszközeredményt.
+// A böngészőtől kapott korábbi beszélgetés tisztítása: csak felhasználói és asszisztensi szöveg jöhet, üzenetenként max. 2000 karakter, és csak az utolsó 12 marad. A böngésző nem küldhet rendszerutasítást vagy eszközeredményt.
 function sanitizeConversation(conversation) {
   if (!Array.isArray(conversation)) return [];
 
@@ -212,9 +202,7 @@ function sanitizeConversation(conversation) {
     .slice(-12);
 }
 
-// Összeállítja a modellnek küldött üzenetet: a felhasználó kérdése, az oldalon látható mérési adatok,
-// az esetleg előre lekért előzmények és az aktuális budapesti idő. A modellnek nincs órája,
-// ezért az idő nélkül a 'ma' és a 'tegnap' szót nem tudná értelmezni.
+// A modellnek küldött üzenet: kérdés, az oldalon látható adatok, az előre lekért előzmények és az aktuális budapesti idő. A modellnek nincs órája, idő nélkül a 'ma' és a 'tegnap' nem értelmezhető.
 function buildUserInput(message, sensorContext, historyResult = null, conversation = []) {
   // A modell megkapja a kérdést, az oldalon látható adatokat és a külön lekért adatokat is.
   const context = JSON.stringify(sensorContext ?? {}, null, 2);
@@ -237,11 +225,9 @@ function buildUserInput(message, sensorContext, historyResult = null, conversati
   }];
 }
 
-// Elküldi a kérést a modellnek: az utasítás (prompt), a bemenet és az engedélyezett adatlekérő eszközök itt találkoznak.
-// A store: false beállítás miatt a beszélgetést az OpenAI nem tárolja. Ha az előzmény már a bemenetben van,
-// az eszközhívást kikapcsoljuk, különben a modell ugyanazt az adatot újra lekérné.
+// Kérés a modellnek: itt áll össze a prompt, a bemenet és az engedélyezett eszközök listája. A store: false miatt az OpenAI nem tárolja a beszélgetést. Ha az előzmény már a bemenetben van, kikapcsoljuk az eszközhívást, különben a modell újra lekérné.
 async function requestModel(apiKey, input, allowToolCalls = true) {
-  // Itt áll össze a modell neve, az utasítás és az engedélyezett adatlekérő eszközök listája.
+  // Modell neve, utasítás és az engedélyezett eszközök.
   const response = await fetchOpenAIWithRetry(apiKey, {
     model: GREENHOUSE_MODEL,
     service_tier: "default",
@@ -278,10 +264,9 @@ async function requestModel(apiKey, input, allowToolCalls = true) {
   return data;
 }
 
-// Végrehajt egy eszközhívást, amit a modell kért (például get_sensor_history). Az eszközök csak olvasnak, eszközt nem vezérelnek.
-// A call_id köti össze a kérést az eredményével. Hiba esetén sem dobunk kivételt, hanem hibaüzenetet adunk vissza a modellnek.
+// Egy, a modell által kért eszközhívás végrehajtása (pl. get_sensor_history). Az eszközök csak olvasnak. A call_id köti össze a kérést az eredménnyel. Hibánál nem dobunk kivételt, hanem hibaüzenetet adunk vissza a modellnek.
 async function executeToolCall(toolCall) {
-  // Az eszközök csak adatot olvasnak, eszköz állapotát soha nem módosítják.
+  // Az eszközök csak olvasnak, az eszközök állapotát nem módosítják.
   try {
     const args = JSON.parse(toolCall.arguments || "{}");
     const result = await runGreenhouseTool(toolCall.name, args);
@@ -303,8 +288,7 @@ async function executeToolCall(toolCall) {
   }
 }
 
-// Egy teljes 'fordulót' futtat: a modell kérhet eszközhívásokat, mi végrehajtjuk, az eredményt visszaadjuk neki,
-// és ez addig ismétlődik, amíg a modell végső választ nem ad. A körök száma korlátozott (MAX_TOOL_ROUNDS).
+// Egy teljes forduló: a modell eszközhívást kérhet, mi végrehajtjuk, visszaadjuk az eredményt, és ez addig megy, amíg végső választ nem ad. A körök száma korlátozott (MAX_TOOL_ROUNDS).
 async function runAssistantTurn(apiKey, input, allowToolCalls) {
   let response = await requestModel(apiKey, input, allowToolCalls);
   let round = 0;
@@ -314,10 +298,10 @@ async function runAssistantTurn(apiKey, input, allowToolCalls) {
     if (toolCalls.length === 0) return response;
     if (round >= MAX_TOOL_ROUNDS) break;
 
-    // Több lekérdezés egyszerre is futhat (Promise.all), mert mind csak olvas.
+    // A lekérések párhuzamosan futhatnak (Promise.all), mert mind csak olvas.
     const toolOutputs = await Promise.all(toolCalls.map(executeToolCall));
 
-    // A modell korábbi eszközhívásait is visszaküldjük, hogy az eredményeket hozzájuk tudja kötni.
+    // A korábbi eszközhívásokat is visszaadjuk, hogy az eredményeket hozzájuk tudja kötni.
     input.push(...response.output, ...toolOutputs);
     response = await requestModel(apiKey, input, allowToolCalls);
     round += 1;
@@ -329,7 +313,7 @@ async function runAssistantTurn(apiKey, input, allowToolCalls) {
   throw error;
 }
 
-// Kiszedi a modell válaszából a megjeleníthető szöveget. A belső eszközhívásokat nem mutatjuk a felhasználónak.
+// A modell válaszából a megjeleníthető szöveg kiszedése. A belső eszközhívásokat nem mutatjuk.
 function extractReply(response) {
   return (response.output || [])
     .flatMap((item) => item.content || [])
@@ -339,7 +323,7 @@ function extractReply(response) {
     .trim();
 }
 
-// A technikai hibákat rövid, érthető magyar üzenetté alakítja. A felhasználónak nem szabad nyers API-hibát látnia.
+// Technikai hibák -> rövid, érthető magyar üzenet. A felhasználó ne lásson nyers API-hibát.
 function userFacingError(error) {
   if (error.code === "tool_call_limit_reached") return error.message;
   if (error.statusCode === 401) return "Az OpenAI API-kulcs érvénytelen vagy nem fér hozzá ehhez a projekthez.";
@@ -358,10 +342,9 @@ function userFacingError(error) {
   return "Az asszisztens most nem érhető el. Ellenőrizd a szerver AI- és ThingSpeak-beállításait, majd próbáld újra.";
 }
 
-// A végpont fő függvénye. A sorrend fontos: bejelentkezés, módszer, bemenet, API-kulcs, és csak utána a tényleges munka.
-// Az olcsó ellenőrzések vannak elöl, így a hibás kérést minél előbb elutasítjuk.
+// A végpont fő függvénye. A sorrend fontos: bejelentkezés, módszer, bemenet, API-kulcs, és csak utána a tényleges munka. Az olcsó ellenőrzések vannak elöl.
 export default async function handler(req, res) {
-  // A chat csak aktív bejelentkezéssel és POST kéréssel használható.
+  // A chat csak bejelentkezve és POST kéréssel használható.
   if (!requireAuthentication(req, res)) return;
 
   if (req.method !== "POST") {
@@ -391,7 +374,7 @@ export default async function handler(req, res) {
         } else if (requestedDates.length > 0) {
           historyResult = await getRequestedDaySummaries(requestedDates);
         } else {
-          // Nincs dátum a kérdésben: az utolsó 48 órát kérjük le.
+          // Ha nincs dátum a kérdésben, az utolsó 48 órát kérjük le.
           historyResult = await runGreenhouseTool("get_sensor_history", { hours: 48, start_date: null, end_date: null, field: "all" });
         }
       } catch (error) {
@@ -406,7 +389,7 @@ export default async function handler(req, res) {
       if (historyResult?.error) {
         return res.status(502).json({ error: userFacingError(historyResult), code: historyResult.code });
       }
-      // Ennél a kérdésnél a dátum és az időtartam közvetlenül a ThingSpeak adataiból származik.
+      // Itt a dátum és az időtartam közvetlenül a ThingSpeak adataiból jön.
       return res.status(200).json({ reply: formatLastRainReply(historyResult) });
     }
 
