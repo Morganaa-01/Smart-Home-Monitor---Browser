@@ -1,8 +1,6 @@
-// Bejelentkezési végpont (/api/auth). Három dolgot tud:
-//   GET    - megmondja, hogy a felhasználó be van-e jelentkezve,
-//   POST   - bejelentkezteti (ellenőrzi a nevet és a jelszót), és munkamenet-sütit ad,
-//   DELETE - kijelentkezteti (törli a sütit).
-// A jelszót kizárólag a szerver ellenőrzi. A böngésző csak az eredményt és egy munkamenet-sütit kap vissza.
+// Bejelentkezési végpont (/api/auth).
+// GET: be van-e jelentkezve a felhasználó. POST: bejelentkezés (név és jelszó ellenőrzése, munkamenet-süti). DELETE: kijelentkezés (süti törlése).
+// A jelszót csak a szerver ellenőrzi, a böngésző csak az eredményt és a sütit kapja.
 import {
   createSessionCookie,
   expiredSessionCookie,
@@ -10,12 +8,11 @@ import {
   verifyCredentials
 } from "./lib/auth.js";
 
-// Ez a függvény kezeli a bejelentkezéssel kapcsolatos kéréseket.
-// req = a beérkező kérés, res = a válasz, amit visszaküldünk a böngészőnek.
+// A bejelentkezéssel kapcsolatos kérések kezelése. req = kérés, res = válasz.
 export default function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
-  // GET: visszaadja, hogy be van-e jelentkezve a felhasználó. DELETE: kijelentkezés.
+  // GET: be van-e jelentkezve. DELETE: kijelentkezés.
   if (req.method === "GET") {
     const settings = verifyCredentials("", "");
     if (!settings.configured) {
@@ -34,7 +31,7 @@ export default function handler(req, res) {
     return res.status(405).json({ error: "Nem támogatott kérés." });
   }
 
-  // POST: ellenőrizzük a belépési adatokat, és ha helyesek, visszaküldjük a munkamenet-sütit.
+  // POST: belépési adatok ellenőrzése, helyes adatnál visszaküldjük a sütit.
   const username = typeof req.body?.username === "string" ? req.body.username : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   if (!username || !password || username.length > 120 || password.length > 200) {

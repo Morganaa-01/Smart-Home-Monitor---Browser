@@ -1,5 +1,4 @@
-// Közös ThingSpeak-kapcsolat: összeállítja a lekérdezést, letölti a méréseket, és hiba esetén egységes hibát dob.
-// A felület és az AI-chat is ezt használja, ezért a hálózati és adatformátum-hibákat egy helyen kezeljük.
+// Közös ThingSpeak-kapcsolat: összeállítja a lekérdezést, letölti a méréseket, hibánál egységes hibát dob. A felület és az AI-chat is ezt használja.
 const DEFAULT_CHANNEL_ID = "3560978";
 const MAX_RESULTS = 8000;
 
@@ -12,14 +11,11 @@ export class ThingSpeakError extends Error {
   }
 }
 
-// Lekéri a méréseket a ThingSpeak csatornából. Háromféleképpen kérhetünk adatot:
-//   - results: az utolsó N rekord,
-//   - days: az utolsó N nap,
-//   - start és end: egy megadott időszak.
-// A csatorna azonosítója és az olvasási kulcs a szerver környezeti változóiból jön. A kulcs nem kerül ki a böngészőbe.
+// Mérések lekérése a ThingSpeak csatornából. Háromféleképpen kérhetünk: results (utolsó N rekord), days (utolsó N nap), start és end (megadott időszak).
+// A csatorna azonosítója és az olvasási kulcs a környezeti változókból jön, a kulcs nem kerül ki a böngészőbe.
 // Az alapértelmezett csatornaazonosító csak tartalék. A 8000 a ThingSpeak által egy kérésre adható legtöbb rekord.
 export async function fetchThingSpeakFeeds({ results = 60, days, start, end } = {}) {
-  // A csatorna adatait a szerver környezeti változóiból olvassuk.
+  // A csatorna adatai a környezeti változókból jönnek.
   const channelId = process.env.THINGSPEAK_CHANNEL_ID || DEFAULT_CHANNEL_ID;
   const readApiKey = process.env.THINGSPEAK_READ_API_KEY;
 
@@ -27,7 +23,7 @@ export async function fetchThingSpeakFeeds({ results = 60, days, start, end } = 
   if (readApiKey) url.searchParams.set("api_key", readApiKey);
   url.searchParams.set("timezone", "UTC");
 
-  // Egy kérésben időszak, napok száma vagy rekordok száma szerepel.
+  // Egy kérésben időszak, napok száma vagy rekordszám szerepel.
   if (start && end) {
     url.searchParams.set("start", start);
     url.searchParams.set("end", end);

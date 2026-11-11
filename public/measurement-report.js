@@ -1,11 +1,10 @@
-// PDF-jelentés: a betöltött mérésből valódi PDF-fájlt készít, külső könyvtár nélkül.
-// Minden oldalt egy vászonra (canvas) rajzol, hogy az ő és ű betűk is helyesen jelenjenek meg, majd képként egy A4-es PDF-be csomagolja.
-// Az 1. oldal a mérések táblázata. Ha van szűrés, a következő oldalakon az oldalon látható grafikonok is szerepelnek.
-// A fájl letölthető, vagy a rendszer megosztási ablakával e-mailben is elküldhető.
-// Az adatokról másolatot használunk, így az automatikus frissítés nem írhatja át a készülő jelentést.
+// PDF-jelentés: a betöltött mérésből PDF-fájlt készít, külső könyvtár nélkül.
+// Minden oldalt vászonra (canvas) rajzolunk, hogy az ő és ű betűk is jól látszódjanak, aztán képként A4-es PDF-be tesszük.
+// 1. oldal: a mérések. Szűrésnél a következő oldalakon a grafikonok is benne vannak.
+// A fájl letölthető, vagy e-mailben elküldhető. Az adatokról másolatot használunk, hogy a frissítés ne írja át a jelentést.
 window.GreenhouseReport = (() => {
-  // A jelentés sorai. Egy sor jelentése: [ThingSpeak-mező, megnevezés, érzékelő, egység vagy az állapotok nevei, tizedesjegyek száma].
-  // Az állapotmezőknél (eső, ventilátor, LED, tető) a lista első eleme a 0, a második az 1 értékhez tartozó szöveg.
+  // A jelentés sorai: [ThingSpeak-mező, megnevezés, érzékelő, egység vagy állapotnevek, tizedesjegyek].
+  // Állapotmezőknél (eső, ventilátor, LED, tető) az első szöveg a 0, a második az 1 értékhez tartozik.
   const fields = [
     ["field1", "Hőmérséklet", "BME280", "°C", 1],
     ["field2", "Relatív páratartalom", "BME280", "%", 1],
@@ -20,7 +19,7 @@ window.GreenhouseReport = (() => {
     + "a mentés nem indít új mérést. Az esőérzékelő csapadékmennyiséget nem mér.";
   const EMAIL_SUBJECT = "Okos Növényház - mérési jelentés";
 
-  // Egy időpontot olvasható, budapesti idejű szöveggé alakít (pl. 2026. nov. 8. 19:33). Hiányzó adatnál 'Nincs megadva'.
+  // Időpont olvasható, budapesti idejű szöveggé (pl. 2026. nov. 8. 19:33). Hiányzó adatnál 'Nincs megadva'.
   function formatTime(value) {
     const date = value ? new Date(value) : null;
     return date && Number.isFinite(date.getTime())
@@ -30,8 +29,8 @@ window.GreenhouseReport = (() => {
       : "Nincs megadva";
   }
 
-  // Összeállítja a jelentés adatait: a sorokat (megnevezés, érzékelő, érték), az időpontokat és azt, hogy a mérés friss vagy régi (2 percnél régebbi).
-  // Csak adatot ad vissza, a DOM-hoz nem nyúl, ezért Node-ban is tesztelhető. A hiányzó érték 'Nincs adat' lesz, nem 0.
+  // Összeállítja a jelentés adatait: sorok, időpontok és hogy a mérés friss-e (2 percnél régebbi = régi).
+  // Csak adatot ad vissza, a DOM-hoz nem nyúl, ezért Node-ban tesztelhető. Hiányzó érték = 'Nincs adat', nem 0.
   function buildReport(entry, now = new Date()) {
     if (!entry || typeof entry !== "object") throw new Error("Még nincs exportálható mérés.");
     const timestamp = entry.created_at ? Date.parse(entry.created_at) : NaN;
@@ -52,7 +51,7 @@ window.GreenhouseReport = (() => {
     return { measuredAt: formatTime(entry.created_at), exportedAt: formatTime(now), status, rows };
   }
 
-  // A fájlnevet a mérés napjából képezi (pl. noveny-haz-jelentes-2026-11-08.pdf), így több jelentés nem keveredik össze.
+  // Fájlnév a mérés napjából (pl. noveny-haz-jelentes-2026-11-08.pdf).
   function fileName(entry) {
     const date = entry && entry.created_at ? new Date(entry.created_at) : new Date();
     const day = Number.isFinite(date.getTime())
@@ -61,9 +60,8 @@ window.GreenhouseReport = (() => {
     return `noveny-haz-jelentes-${day}.pdf`;
   }
 
-  // Egy PDF-fájlt állít össze bájtonként: minden oldalon egyetlen, az egész oldalt kitöltő JPEG-kép van.
-  // pages: oldalak listája, mindegyik { jpeg: bájtok, width: szélesség, height: magasság }.
-  // A PDF-ben csak sima szöveges vezérlősorok és a kép bájtjai vannak, ezért nincs szükség külső könyvtárra.
+  // PDF-fájl összeállítása bájtonként. Minden oldalon egy, az egész oldalt kitöltő JPEG-kép van.
+  // pages: oldalak listája, mindegyik { jpeg: bájtok, width, height }.
   function createPdf(pages) {
     const encoder = new TextEncoder();
     const chunks = [];
@@ -114,8 +112,7 @@ window.GreenhouseReport = (() => {
     return pdf;
   }
 
-  // Megrajzolja az 1. oldalt egy A4-es vászonra (150 dpi): cím, időpontok, állapot, mérések táblázata, lábjegyzet.
-  // A feliratokat sima szövegként rajzoljuk a vászonra, így HTML-ként soha nem értelmeződnek.
+  // Az 1. oldal megrajzolása A4-es vászonra (150 dpi): cím, időpontok, állapot, mérések, lábjegyzet.
   function drawReport(report) {
     const width = 1240;
     const height = 1754;
@@ -149,7 +146,7 @@ window.GreenhouseReport = (() => {
     text("Mérés időpontja: " + report.measuredAt, margin, y += 70, 26);
     text("Jelentés készítése: " + report.exportedAt, margin, y += 42, 26);
     text(report.status, margin, y += 42, 26, "bold");
-    // Csak akkor van beállítva, ha a grafikonok is a PDF-ben vannak, így az 1. oldalon is látszik a szűrt időszak.
+    // Csak akkor van beállítva, ha a grafikonok is a PDF-ben vannak.
     if (report.periodLabel) text(report.periodLabel, margin, y += 42, 26);
     text("Mérések és eszközállapotok", margin, y += 90, 34, "bold");
 
@@ -189,14 +186,14 @@ window.GreenhouseReport = (() => {
     return canvas;
   }
 
-  // Azok a stílustulajdonságok, amelyek miatt az SVG-grafikon az oldalon kívül is ugyanúgy néz ki.
+  // Azok a stílustulajdonságok, amiket az SVG-grafikonról át kell másolni, hogy a PDF-ben is ugyanúgy nézzen ki.
   const CHART_STYLE_PROPERTIES = [
     "fill", "fill-opacity", "stroke", "stroke-width", "stroke-opacity", "stroke-dasharray", "stroke-linecap",
     "stroke-linejoin", "opacity", "display", "visibility", "font-family", "font-size", "font-weight",
     "text-anchor", "letter-spacing"
   ];
 
-  // Megkeresi az elem alatti első nem átlátszó háttérszínt, felfelé haladva az oldalig. A grafikon hátteréhez kell.
+  // Az elem alatti első nem átlátszó háttérszín (felfelé keresve), a grafikon hátteréhez kell.
   function findBackground(element) {
     for (let node = element; node; node = node.parentElement) {
       const color = getComputedStyle(node).backgroundColor;
@@ -205,8 +202,8 @@ window.GreenhouseReport = (() => {
     return "#ffffff";
   }
 
-  // Egy, az oldalon lévő grafikont (SVG) vászonra rajzol ugyanazokkal a színekkel és betűkkel, mint a képernyőn.
-  // Az SVG-képek nem látják az oldal stíluslapjait, ezért a CSS-szabályokat beírjuk közvetlenül az elemekre (inline stílus).
+  // Az oldalon lévő grafikont (SVG) vászonra rajzolja, ugyanazokkal a színekkel és betűkkel.
+  // Az SVG-kép nem látja az oldal CSS-ét, ezért a stílusokat inline beírjuk az elemekre.
   function chartToCanvas(svg) {
     const box = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width
       ? svg.viewBox.baseVal
@@ -243,10 +240,10 @@ window.GreenhouseReport = (() => {
     });
   }
 
-  // Egy A4-es oldalra ennyi grafikon fér el egymás alatt.
+  // Ennyi grafikon fér egy A4-es oldalra.
   const CHARTS_PER_PAGE = 4;
 
-  // A grafikonokat A4-es oldalakra rendezi egymás alá (oldalanként CHARTS_PER_PAGE darab).
+  // A grafikonokat A4-es oldalakra rendezi (oldalanként CHARTS_PER_PAGE darab).
   // Az első oldal tetején a cím és a szűrt időszak is szerepel.
   async function drawChartPages(svgs, periodLabel) {
     const width = 1240;
@@ -290,7 +287,7 @@ window.GreenhouseReport = (() => {
     return pages;
   }
 
-  // A canvas.toDataURL base64 szöveget ad, a PDF-nek viszont a JPEG nyers bájtjai kellenek.
+  // A canvas.toDataURL base64 szöveget ad, a PDF-nek viszont nyers JPEG-bájtok kellenek.
   function base64ToBytes(base64) {
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
@@ -298,14 +295,14 @@ window.GreenhouseReport = (() => {
     return bytes;
   }
 
-  // Egy vászonból egy JPEG-oldalt készít a PDF-hez.
+  // Vászonból JPEG-oldal a PDF-hez.
   function toPage(canvas) {
     const jpeg = base64ToBytes(canvas.toDataURL("image/jpeg", 0.92).split(",")[1]);
     return { jpeg, width: canvas.width, height: canvas.height };
   }
 
-  // Elkészíti a teljes PDF-fájlt: az 1. oldal a mérések, utána (ha van szűrés) a grafikonok.
-  // options.charts az oldalon lévő SVG-grafikonok, options.periodLabel pedig a szűrt időszak felirata.
+  // Elkészíti a PDF-fájlt: 1. oldal = mérések, utána (szűrésnél) a grafikonok.
+  // options.charts = az oldalon lévő SVG-grafikonok, options.periodLabel = a szűrt időszak felirata.
   async function createFile(entry, options = {}) {
     const report = buildReport({ ...entry });
     const withCharts = Array.isArray(options.charts) && options.charts.length > 0;
@@ -317,7 +314,7 @@ window.GreenhouseReport = (() => {
     return new File([createPdf(pages)], fileName(entry), { type: "application/pdf" });
   }
 
-  // Elindítja a fájl letöltését egy ideiglenes hivatkozással. A hivatkozást pár másodperc múlva felszabadítjuk, hogy ne foglalja a memóriát.
+  // Letöltés ideiglenes hivatkozással, amit pár másodperc múlva felszabadítunk.
   function downloadFile(file) {
     const url = URL.createObjectURL(file);
     const link = document.createElement("a");
@@ -329,16 +326,15 @@ window.GreenhouseReport = (() => {
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
-  // PDF mentése a számítógépre. Visszaadja a fájl nevét, amit az eseménynaplóba írunk.
+  // PDF mentése a gépre. Visszaadja a fájlnevet, amit az eseménynaplóba írunk.
   async function download(entry, options) {
     const file = await createFile(entry, options);
     downloadFile(file);
     return file.name;
   }
 
-  // E-mailes küldés. Ahol a böngésző támogatja (Windows, Android, iOS), megnyílik a rendszer megosztási ablaka,
-  // és a PDF csatolva kerül a levelezőalkalmazásba. Máshol letöltjük a PDF-et, és megnyitjuk a levelezőt kitöltött tárggyal.
-  // A mailto: hivatkozás nem tud csatolmányt átadni, ezért ilyenkor a fájlt kézzel kell csatolni.
+  // E-mailes küldés. Ahol a böngésző tudja (Windows, Android, iOS), megnyílik a megosztási ablak, és a PDF csatolva kerül a levelezőbe.
+  // Máshol letöltjük a PDF-et, és megnyitjuk a levelezőt kitöltött tárggyal. A mailto: nem tud csatolmányt átadni, ezért ilyenkor kézzel kell csatolni.
   async function sendByEmail(entry, options) {
     const file = await createFile(entry, options);
     const message = "Csatolva küldöm az Okos Növényház aktuális mérési jelentését.";
@@ -348,7 +344,7 @@ window.GreenhouseReport = (() => {
         return { method: "share", fileName: file.name };
       } catch (error) {
         if (error && error.name === "AbortError") return { method: "cancelled", fileName: file.name };
-        // Ha a megosztás mégsem indul el, letöltésre váltunk.
+        // Ha a megosztás nem indul el, letöltésre váltunk.
       }
     }
     downloadFile(file);

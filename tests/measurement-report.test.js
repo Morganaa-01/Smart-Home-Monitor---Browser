@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-// A jelentés összeállítása böngésző és valódi szenzorlekérés nélkül is tesztelhető.
+// A jelentés böngésző és valódi szenzorlekérés nélkül is tesztelhető.
 const context = vm.createContext({ window: {}, Intl, Date, TextEncoder, Uint8Array });
 vm.runInContext(readFileSync(new URL("../public/measurement-report.js", import.meta.url), "utf8"), context);
 const { buildReport, createPdf, fileName } = context.window.GreenhouseReport;

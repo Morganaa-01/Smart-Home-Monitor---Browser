@@ -1,31 +1,27 @@
-// Helyi fejlesztői szerver: a saját gépeden ezzel tudod kipróbálni a programot (indítás: npm.cmd start).
-// Két dolgot csinál: kiszolgálja a public mappa fájljait (HTML, CSS, JS), és az /api címekre érkező
-// kéréseket ugyanazoknak a függvényeknek adja át, amelyek az éles Vercel-en is futnak.
-// Így nincs külön, helyi másolat az API-ból, ami eltérhetne az éles változattól.
-// Ez egy CommonJS fájl (require), az API modulok viszont ES modulok, ezért dinamikus import()-tal töltjük be őket.
-// Az Express egy népszerű Node.js keretrendszer: egyszerűvé teszi a webszerver írását.
+// Helyi fejlesztői szerver (indítás: npm.cmd start).
+// Kiszolgálja a public mappa fájljait, az /api címeket pedig ugyanazoknak a függvényeknek adja át, amik az éles Vercel-en is futnak, így nincs külön helyi másolat az API-ból.
+// Ez CommonJS fájl (require), az API modulok viszont ES modulok, ezért dinamikus import()-tal töltjük be őket.
+// Az Express egy Node.js webszerver keretrendszer.
 const express = require("express");
 const path = require("path");
-// A dotenv beolvassa a projekt gyökerében lévő .env fájlt, és a benne lévő beállításokat (kulcsok, jelszó)
-// környezeti változóként elérhetővé teszi. A .env fájlt soha nem töltjük fel GitHubra.
+// A dotenv beolvassa a .env fájlt, és környezeti változóvá teszi a benne lévő beállításokat (kulcsok, jelszó). A .env fájlt nem töltjük fel GitHubra.
 require("dotenv").config();
 
-// Létrehozzuk a webalkalmazást, és megadjuk, melyik porton figyeljen (alapból a 3000-esen).
+// Webalkalmazás létrehozása, a port alapból 3000.
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// A beérkező kérések JSON törzsét (például a chat kérdését) automatikusan objektummá alakítjuk,
-// legfeljebb 20 kilobájtig, hogy egy túl nagy kérés ne terhelje a szervert.
+// A kérések JSON törzsét objektummá alakítjuk (max. 20 kB).
 app.use(express.json({ limit: "20kb" }));
-// A public mappa fájljait (index.html, script.js, style.css...) közvetlenül kiszolgáljuk a böngészőnek.
+// A public mappa fájljait (index.html, script.js, app.css...) közvetlenül kiszolgáljuk.
 app.use(express.static(path.join(__dirname, "public")));
 
-// A főoldal címére (/) az index.html fájlt küldjük vissza.
+// A főoldal (/) az index.html.
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// Bejelentkezés végpontja: minden módszert (GET, POST, DELETE) ugyanaz a kezelő dolgozza fel.
+// Bejelentkezés végpont: GET, POST és DELETE is ugyanazt a kezelőt hívja.
 app.all("/api/auth", async (req, res) => {
   try {
     const { default: authHandler } = await import("./api/auth.js");
@@ -36,10 +32,10 @@ app.all("/api/auth", async (req, res) => {
   }
 });
 
-// AI-chat végpont: csak POST kérést fogad.
+// AI-chat végpont, csak POST.
 app.post("/api/chat", async (req, res) => {
   try {
-    // Helyben és az éles tárhelyen is ugyanazt az API-kezelőt használjuk.
+    // Helyben és élesben is ugyanaz a kezelő fut.
     const { default: chatHandler } = await import("./api/chat.js");
     return chatHandler(req, res);
   } catch (error) {
@@ -47,7 +43,7 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-// Mérések végpontja: a böngésző innen kéri a ThingSpeak adatait.
+// Mérések végpontja, innen kéri a böngésző a ThingSpeak adatait.
 app.get("/api/thingspeak", async (req, res) => {
   try {
     const { default: thingSpeakHandler } = await import("./api/thingspeak.js");
@@ -61,7 +57,7 @@ app.get("/api/thingspeak", async (req, res) => {
   }
 });
 
-// Elindítjuk a szervert, és kiírjuk a konzolra, melyik címen érhető el az oldal.
+// Szerver indítása, a cím kiírása a konzolra.
 app.listen(PORT, () => {
   console.log(`Okos Növényház elérhető itt: http://localhost:${PORT}`);
 });

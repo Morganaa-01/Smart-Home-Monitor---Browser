@@ -1,15 +1,12 @@
-// A főoldal működése: betölti a méréseket és a grafikonokat, kezeli az időjárást, a témát és az AI-chatet.
-// A kártyák, a grafikonok és a chat adatai az API-ból érkeznek. A localStorage (a böngésző helyi tárhelye) őrzi a helyi
-// beállításokat és a beszélgetést böngészőnként és webcímenként, közös szerveres adatbázis nincs.
-// A bejelentkezés ellenőrzése a fájl végén indul. Az oldal elrejtése önmagában nem biztonság,
-// ezért az API végpontok is külön ellenőrzik a jogosultságot.
-// Időzítések (ezredmásodpercben): a kártyák 30 másodpercenként, a grafikonok 5 percenként kérnek új adatot a ThingSpeaktől.
+// Főoldal: mérések, grafikonok, időjárás, téma és AI-chat.
+// Az adatok az API-ból jönnek, a beállításokat a localStorage őrzi (böngészőnként).
+// Az oldal elrejtése nem biztonság, az API-k külön ellenőrzik a belépést.
+// Frissítés: a kártyák 30 mp-enként, a grafikonok 5 percenként.
 const REFRESH_INTERVAL_MS = 30_000;
 const CHART_REFRESH_INTERVAL_MS = 5 * 60_000;
 
-// A legutóbbi adatok itt vannak tárolva, hogy az oldal és a chat ugyanazokat az értékeket használja.
-// readings = az utolsó mérés számokként, lastEntry = ugyanez nyers ThingSpeak-rekordként,
-// chartFiltered = be van-e állítva szűrés a grafikonokon (ettől függ, hogy a PDF-be kerülnek-e a grafikonok).
+// Az utolsó mérés, hogy az oldal és a chat ugyanazt használja.
+// chartFiltered: van-e szűrés a grafikonokon (ettől függ, hogy a PDF-be kerülnek-e a grafikonok).
 const state = {
   readings: null,
   lastEntry: null,
@@ -20,17 +17,16 @@ const state = {
   chartRefreshTimer: null
 };
 
-// Ezekkel a kulcsokkal mentjük az adatokat a böngésző helyi tárhelyébe (localStorage), és ennyi elemet tartunk meg belőlük.
+// localStorage kulcsok és a megtartott elemek maximális száma.
 const ACTIVITY_LOG_KEY = "greenhouse-activity-log";
 const ACTIVITY_LOG_LIMIT = 30;
 const CHAT_HISTORY_KEY = "greenhouse-chat-history";
 const CHAT_HISTORY_LIMIT = 60;
 const SENSOR_CACHE_KEY = "greenhouse-last-reading";
-// A chat nyitóüzenete, amit induláskor megjelenítünk, ha még nincs mentett beszélgetés.
+// A chat nyitóüzenete, ha még nincs mentett beszélgetés.
 const CHAT_GREETING_TEXT = "Szia! A legutóbb betöltött növényházi mérések alapján tudok segíteni. A beszélgetést a gpt-6-luna modell működteti.";
 
-// Kiolvassa a mentett beszélgetést a böngésző helyi tárhelyéből. A beszélgetést csak ebben a böngészőben őrizzük, és a mérete korlátozott.
-// Hibás vagy sérült adatnál üres listát ad vissza, hogy az oldal ne álljon le.
+// Mentett beszélgetés beolvasása. Hibás adatnál üres lista jön vissza.
 function getSavedChatHistory() {
   try {
     const messages = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || "[]");
@@ -45,10 +41,9 @@ function getSavedChatHistory() {
   }
 }
 
-// Elmenti a beszélgetést. A listát az oldalon látható chat-buborékokból építjük újra, így nincs második másolat, ami eltérhetne.
-// A 'Gondolkodom…' helyőrzőt kihagyjuk, különben újratöltés után is megjelenne.
+// Beszélgetés mentése a chatbuborékokból. A 'Gondolkodom…' üzenetet nem mentjük.
 function saveChatHistory() {
-  // Csak a valódi felhasználói és asszisztens üzeneteket mentjük, a rendszerüzeneteket nem.
+  // Csak a felhasználó és az asszisztens üzenetét mentjük.
   const messages = [...$("chatMessages").querySelectorAll(".chat-message")]
     .filter((item) => item.classList.contains("user-message") || item.classList.contains("bot-message"))
     .map((item) => ({
@@ -62,17 +57,16 @@ function saveChatHistory() {
   try {
     localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(messages));
   } catch {
-    // Ha a böngésző tiltja a helyi tárolást, a chat attól még használható marad.
+    // Ha a böngésző nem engedi a tárolást, a chat attól még működik.
   }
 }
 
-// Visszatölti a korábbi beszélgetést az oldalra. Visszatöltéskor nem mentjük újra az üzeneteket egyesével, így nem lesznek ismétlődések.
-// Igazat ad vissza, ha volt mentett üzenet.
+// Korábbi beszélgetés visszatöltése. Igaz, ha volt mentett üzenet.
 function restoreChatHistory() {
-  // Visszatöltjük az utolsó üzeneteket. Az addChatMessage utolsó false paramétere megakadályozza az újramentést.
+  // A false paraméter miatt nem ment újra.
   const messages = getSavedChatHistory();
   messages.forEach(({ sender, text, type }, index) => {
-    // A korábban elmentett nyitóüzenetet is frissítjük, hogy a modell neve ott is látszódjon.
+    // A régi nyitóüzenetet is frissítjük, hogy a modell neve látszódjon.
     const greeting = index === 0 && type === "bot" && text === "Szia! A legutóbb betöltött növényházi mérések alapján tudok segíteni."
       ? CHAT_GREETING_TEXT
       : text;
@@ -81,18 +75,17 @@ function restoreChatHistory() {
   return messages.length > 0;
 }
 
-// Induláskor azonnal megmutatja az utoljára mentett mérést, amíg a friss lekérés tart. A mentett érték az eredeti mérési idejével jelenik meg,
-// így látszik, hogy nem friss adat.
+// Induláskor az utoljára mentett mérést mutatjuk, amíg a friss lekérés tart.
 function restoreCachedReading() {
   try {
     const entry = JSON.parse(localStorage.getItem(SENSOR_CACHE_KEY) || "null");
     if (entry && typeof entry.created_at === "string") renderReadings(entry, false);
   } catch {
-    // Ha a gyorsítótár hibás vagy hiányzik, a ThingSpeak-lekérés tölti be az adatot.
+    // Ha nincs mentett adat, a ThingSpeak-lekérés tölti be.
   }
 }
 
-// Kiolvassa az eseménynaplót a helyi tárhelyből. Sérült adatnál üres naplóval folytatjuk, hogy az oldal ne álljon le.
+// Eseménynapló beolvasása, hibánál üres napló.
 function getActivityLog() {
   try {
     const savedEntries = JSON.parse(localStorage.getItem(ACTIVITY_LOG_KEY) || "[]");
@@ -102,7 +95,7 @@ function getActivityLog() {
   }
 }
 
-// Kirajzolja az eseménynaplót a képernyőre (időpont + üzenet soronként). Ez helyi napló a felhasználónak, nem teljes szerveres napló.
+// Eseménynapló kirajzolása (idő + üzenet). Csak helyi napló.
 function renderActivityLog() {
   const list = $("activityLogEntries");
   if (!list) return;
@@ -141,20 +134,20 @@ function renderActivityLog() {
   });
 }
 
-// Új sort ad az eseménynaplóhoz. A legújabb van elöl, és a lista legfeljebb ACTIVITY_LOG_LIMIT elemű, így a helyi tárhely nem nő a végtelenségig.
-// message = a szöveg, level = 'info', 'success' vagy 'error' (a szín ettől függ).
+// Új naplósor, legfeljebb ACTIVITY_LOG_LIMIT darab marad.
+// level: 'info', 'success' vagy 'error'.
 function addActivityLog(message, level = "info") {
   const entries = getActivityLog();
   entries.unshift({ at: new Date().toISOString(), message, level });
   try {
     localStorage.setItem(ACTIVITY_LOG_KEY, JSON.stringify(entries.slice(0, ACTIVITY_LOG_LIMIT)));
   } catch {
-    // Ha a böngésző nem engedi a tárolást, a felület ettől még tovább működik.
+    // Ha nem lehet menteni, az oldal attól még megy tovább.
   }
   renderActivityLog();
 }
 
-// Megjeleníti a mentett naplót az oldal megnyitásakor, és bekapcsolja a Napló törlése gombot.
+// Napló megjelenítése és a törlés gomb bekötése.
 function setupActivityLog() {
   renderActivityLog();
   $("clearActivityLogBtn").addEventListener("click", () => {
@@ -163,7 +156,7 @@ function setupActivityLog() {
   });
 }
 
-// A grafikonok adatai mezőszám szerint (1-8): a cím, a mértékegység és az állapotmezők szövegei.
+// A grafikonok adatai mezőszám szerint (1-8): cím, mértékegység, állapotszövegek.
 const CHART_LABELS = {
   1: "Hőmérséklet előzményei",
   2: "Páratartalom előzményei",
@@ -193,15 +186,14 @@ const CHART_STATE_LABELS = {
   8: { 0: "Zárva", 1: "Nyitva" }
 };
 
-// A grafikonokhoz utoljára betöltött adatok (átméretezéskor ebből rajzoljuk újra), az átméretezés időzítője,
-// és hogy egyéni időszak van-e kiválasztva.
+// Utoljára betöltött grafikonadat (témaváltáskor ebből rajzolunk újra) és hogy egyéni időszak van-e.
 let chartFeedsForResize = null;
 let chartCustomRangeActive = false;
 
-// Rövidítés: $('valami') = document.getElementById('valami'), így rövidebb a kód.
+// Rövidítés a document.getElementById-ra.
 const $ = (id) => document.getElementById(id);
 
-// A felső adatkártya sorai: a kulcs a kód, a label a felületen megjelenő név. A sorrendet és a láthatóságot a felhasználó állíthatja.
+// A felső kártya sorai: key = kód, label = megjelenő név.
 const SUMMARY_STORAGE_KEY = "greenhouse-summary-rows";
 const SUMMARY_ROWS = [
   { key: "temperature", label: "Hőmérséklet · BME280" },
@@ -216,7 +208,7 @@ const SUMMARY_ROWS = [
 
 const DEFAULT_SUMMARY_ORDER = SUMMARY_ROWS.map((row) => row.key);
 
-// A környezeti mérőkártyák listája (ezek is áthelyezhetők, elrejthetők).
+// Mérőkártyák listája (át lehet rendezni, el lehet rejteni).
 const METRIC_CARDS = [
   { key: "temperature", label: "Hőmérséklet" },
   { key: "humidity", label: "Relatív páratartalom" },
@@ -229,14 +221,14 @@ const METRIC_CARDS = [
 ];
 const DEFAULT_METRIC_ORDER = METRIC_CARDS.slice(0, 4).map((item) => item.key);
 const METRIC_STORAGE_KEY = "greenhouse-metric-cards";
-// A grafikonok beállításai: melyik mezők grafikonja látszik, és legfeljebb hány (8).
+// Grafikon beállítások: melyik mezők látszanak, legfeljebb 8.
 const CHART_STORAGE_KEY = "greenhouse-chart-fields";
 const DEFAULT_CHART_FIELDS = [1, 2, 3, 4, 5, 6, 7, 8];
 const MAX_CHART_SLOTS = 8;
 
 // ---------- Grafikon-segédek ----------
 
-// Időpont szöveggé alakítása budapesti idővel (év, hónap, nap, óra, perc, másodperc). A ThingSpeak UTC-ben ad időt, az oldal viszont budapesti időt mutat.
+// Időpont budapesti időben (a ThingSpeak UTC-t ad).
 function formatBudapestTime(value) {
   if (!value) return "—";
   const date = value instanceof Date ? value : new Date(value);
@@ -253,7 +245,7 @@ function formatBudapestTime(value) {
   }).format(date);
 }
 
-// Rövid időpont (hónap, nap, óra, perc) az állapotsorokhoz. Mindig budapesti idő, így mindenkinek ugyanaz az óra látszik.
+// Rövid budapesti időpont az állapotsorokhoz.
 function formatCompactBudapestTime(value) {
   if (!value) return "nincs adat";
   const date = new Date(value);
@@ -269,20 +261,19 @@ function formatCompactBudapestTime(value) {
   }).format(date);
 }
 
-// A 2026-09-03T19:33 formát '2026. 09. 03. 19:33' alakra írja, évszámmal, magyar szokás szerint (a PDF-ben használjuk).
+// '2026-09-03T19:33' -> '2026. 09. 03. 19:33' (a PDF-hez).
 function formatFullDateTimeInput(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value || "");
   return match ? `${match[1]}. ${match[2]}. ${match[3]}. ${match[4]}:${match[5]}` : value;
 }
 
-// A dátummező értékét (2026-11-07T15:33) rövid alakra írja. Reguláris kifejezéssel vágjuk szét a new Date() helyett,
-// így a böngésző időzónája nem tolhatja el az órát.
+// Dátummező értéke rövid alakra. Regexszel vágjuk szét, mert a new Date() az időzóna miatt eltolhatná az időt.
 function formatCompactDateTimeInput(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value || "");
   return match ? `${match[3]}.${match[2]}. ${match[4]}:${match[5]}` : value;
 }
 
-// Egy Date objektumot a dátummező formátumára (ÉÉÉÉ-HH-NNTÓÓ:PP) alakít budapesti idő szerint, a böngésző időzónájától függetlenül.
+// Date objektum -> dátummező formátum (ÉÉÉÉ-HH-NNTÓÓ:PP), budapesti idővel.
 function formatBudapestDateTimeInput(value) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Budapest",
@@ -299,14 +290,14 @@ function formatBudapestDateTimeInput(value) {
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
-// Sok mérési pontnál megritkítja az adatsort, hogy a grafikon gyors maradjon. Minden csoportból megtartja a legkisebb és a legnagyobb értéket,
-// így a csúcsok és a völgyek nem tűnnek el.
+// Sok pontnál ritkítjuk az adatsort, hogy gyors maradjon a grafikon.
+// Csoportonként megtartjuk a min. és max. értéket, így a csúcsok nem tűnnek el.
 function downsampleReadings(readings, maxPoints = 480) {
   if (readings.length <= maxPoints) {
     return readings.map((reading, index) => ({ ...reading, sourceIndex: index }));
   }
 
-  // Minden csoportból a legkisebb és a legnagyobb értéket tartjuk meg, hogy a csúcsok látszanak maradjanak.
+  // Csoportonként a legkisebb és a legnagyobb érték marad.
   const bucketSize = Math.ceil((readings.length - 2) / ((maxPoints - 2) / 2));
   const sampled = [{ ...readings[0], sourceIndex: 0 }];
 
@@ -335,11 +326,11 @@ function downsampleReadings(readings, maxPoints = 480) {
 
 // ---------- Grafikonok (ApexCharts) ----------
 
-// Az ApexCharts a Tabler csomagjával érkezik (vendor/tabler/libs/apexcharts).
-// A példányokat itt tartjuk számon, hogy újrarajzolás előtt megszüntethessük őket.
+// Az ApexCharts a Tabler csomagjával jön (vendor/tabler/libs/apexcharts).
+// A példányokat itt tartjuk, hogy újrarajzolás előtt törölni tudjuk őket.
 const apexCharts = new Map();
 
-// Rövid, budapesti idejű dátum a vízszintes tengely feliratához.
+// Dátumformátum a vízszintes tengelyhez.
 const chartAxisDateFormat = new Intl.DateTimeFormat("hu-HU", {
   timeZone: "Europe/Budapest",
   month: "short",
@@ -353,7 +344,7 @@ function renderThingSpeakCharts(feeds) {
   const isDark = document.documentElement.getAttribute("data-bs-theme") === "dark";
   const textColor = isDark ? "#9aa5b5" : "#667382";
 
-  // Az eltávolított grafikonok példányait is felszabadítjuk.
+  // Az eltávolított grafikonok példányait töröljük.
   apexCharts.forEach((instance, element) => {
     if (!element.isConnected) {
       instance.destroy();
@@ -380,7 +371,7 @@ function renderThingSpeakCharts(feeds) {
       return unit ? `${formattedValue} ${unit}` : formattedValue;
     };
 
-    // A régi példányt eldobjuk, és az elem tartalmát is töröljük.
+    // Régi példány törlése.
     apexCharts.get(chart)?.destroy();
     apexCharts.delete(chart);
     chart.replaceChildren();
@@ -446,8 +437,8 @@ function renderThingSpeakCharts(feeds) {
 
 // ---------- Chat és szenzoradatok ----------
 
-// Új üzenetet tesz a chatablakba. A szöveget textContent-tel állítjuk be, így az üzenetben kapott HTML nem fut le.
-// sender = a küldő neve, type = 'user', 'bot' vagy 'system', save = mentse-e a beszélgetést (visszatöltéskor false).
+// Új üzenet a chatablakba. textContent-et használunk, így nem fut le a kapott HTML.
+// sender = küldő, type = 'user' / 'bot' / 'system', save = mentse-e (visszatöltéskor false).
 function addChatMessage(sender, message, type, save = true) {
   const item = document.createElement("article");
   item.className = `chat-message ${type}-message`;
@@ -458,18 +449,17 @@ function addChatMessage(sender, message, type, save = true) {
   item.append(heading, body);
   $("chatMessages").append(item);
   $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
-  // A visszatöltött üzeneteknél kikapcsoljuk a mentést, új üzenetnél viszont frissítjük az előzményt.
+  // Visszatöltésnél nem mentünk, új üzenetnél igen.
   if (save && ["user", "bot"].includes(type)) saveChatHistory();
   return body;
 }
 
-// Igaz, ha az üzenet csak egy köszönés (pl. 'szia'). Erre nem kell AI-hívás, fix választ adunk, és ez nem kerül pénzbe.
+// Igaz, ha csak köszönés (pl. 'szia'). Erre fix választ adunk, nem hívjuk az AI-t.
 function isSimpleGreeting(message) {
   return /^(szia|helló|hello|üdv|jó napot|jó reggelt|jó estét|szevasz|szervusz|hi|hey)[!.?\s]*$/iu.test(message.trim());
 }
 
-// Letisztítja az AI válaszát. A modell néha markdown jelöléssel válaszol (**félkövér**, # címsor, - lista), a chatbuborék viszont sima szöveg,
-// ezért kivesszük ezeket a jeleket, hogy ne látszanak felesleges csillagok.
+// AI válasz tisztítása: a modell néha markdown jeleket (**, #, -) használ, de a buborék sima szöveg.
 function cleanAssistantReply(message) {
   return String(message)
     .replace(/\\([\\`*_{}\[\]()#+\-.!>])/g, "$1")
@@ -480,14 +470,14 @@ function cleanAssistantReply(message) {
     .trim();
 }
 
-// A ThingSpeak mezői szövegként érkeznek. Számmá alakítja őket, a hiányzó vagy hibás érték null lesz (nem nulla).
+// A ThingSpeak szövegként adja a mezőket. Számmá alakítjuk, hiányzó érték = null.
 function numericField(value) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-// Szám magyar formátumban (tizedesvessző). A null értéket gondolatjel jelzi, soha nem hamis nulla.
+// Szám magyar formában (tizedesvessző). Null esetén '—'.
 function formatted(value, digits = 0) {
   return value === null ? "—" : new Intl.NumberFormat("hu-HU", {
     maximumFractionDigits: digits,
@@ -495,18 +485,17 @@ function formatted(value, digits = 0) {
   }).format(value);
 }
 
-// Egy kártyán az érték és a mértékegység együtt jelenik meg (pl. 22,5 °C). Ha nincs adat, gondolatjel látszik.
+// Kártyán az érték és az egység együtt (pl. 22,5 °C).
 function setMetric(id, value, unit, digits = 0) {
   $(id).textContent = value === null ? "—" : `${formatted(value, digits)} ${unit}`;
 }
 
-// Ugyanaz, mint a setMetric, de azokhoz a helyekhez, ahol a mértékegység külön van a HTML-ben.
+// Mint a setMetric, de itt az egység külön van a HTML-ben.
 function setNumber(id, value, digits = 0) {
   $(id).textContent = formatted(value, digits);
 }
 
-// Egy állapotjelző feliratát és színét állítja be. A CSS-osztály (status-on, status-off...) dönti el a színt.
-// A Tabler jelvények színe az állapottól függ (zöld: rendben, sárga: figyelmeztetés).
+// Állapotjelző felirata és színe (Tabler badge: zöld = rendben, sárga = figyelmeztetés).
 const STATE_BADGE_CLASSES = { on: "bg-green-lt", warning: "bg-yellow-lt", pending: "bg-secondary-lt" };
 
 function setStateBadge(id, label, stateName) {
@@ -515,8 +504,7 @@ function setStateBadge(id, label, stateName) {
   element.className = `badge ${STATE_BADGE_CLASSES[stateName] || STATE_BADGE_CLASSES.pending}`;
 }
 
-// A bemutató kapcsolót a valódi eszközállapothoz igazítja, amíg a felhasználó meg nem nyomja. Utána a felhasználó választása marad,
-// mert ezek a kapcsolók csak bemutatók, nem vezérlik a mikrovezérlőt.
+// A bemutató kapcsoló követi az eszközállapotot, amíg a felhasználó át nem állítja. Csak demó, nem vezérel semmit.
 function syncDemoSwitch(id, isOn) {
   const control = $(id);
   if (!control.dataset.previewChanged) control.checked = isOn === true;
@@ -524,9 +512,9 @@ function syncDemoSwitch(id, isOn) {
 
 // ---------- Az irányítópult mérései ----------
 
-// Egy ThingSpeak-rekordból frissíti a mérőkártyákat, az állapotjelzőket és a kapcsolókat. Kiszámolja az adat korát is:
-// két percnél régebbi mérést 'Régi mérés'-ként jelöl. A mérést elmenti a helyi tárhelybe is, hogy hálózati hiba esetén legyen mit mutatni.
-// entry = a rekord (field1...field8 és created_at), saveToCache = mentse-e a gyorsítótárba.
+// Mérőkártyák, állapotjelzők és kapcsolók frissítése egy ThingSpeak-rekordból.
+// 2 percnél régebbi mérés = 'Régi mérés'. Hálózati hiba esetére elmentjük a mérést.
+// entry = rekord (field1-8, created_at), saveToCache = mentse-e.
 function renderReadings(entry, saveToCache = true) {
   const fields = {
     temperature: numericField(entry.field1),
@@ -545,10 +533,10 @@ function renderReadings(entry, saveToCache = true) {
   $("emailPdfBtn").disabled = false;
   if (saveToCache) {
     try {
-      // Így hálózati hiba esetén is marad egy korábbi, megjeleníthető mérés.
+      // Hálózati hibánál ezt tudjuk megmutatni.
       localStorage.setItem(SENSOR_CACHE_KEY, JSON.stringify(entry));
     } catch {
-      // A friss mérés megjelenítését nem akadályozhatja meg a megtelt tárhely.
+      // Ha tele van a tárhely, attól még megjelenik a mérés.
     }
   }
 
@@ -583,7 +571,7 @@ function renderReadings(entry, saveToCache = true) {
   const ageSeconds = date && !Number.isNaN(date.valueOf())
     ? Math.max(0, Math.floor((Date.now() - date.valueOf()) / 1000))
     : null;
-  // Két percnél régebbi mérést régi adatnak jelölünk.
+  // 2 percnél régebbi = régi adat.
   const isStale = ageSeconds !== null && ageSeconds > 120;
   $("lastUpdated").textContent = date && !Number.isNaN(date.valueOf())
     ? `Utoljára frissítve: ${date.toLocaleString("hu-HU")}`
@@ -592,8 +580,8 @@ function renderReadings(entry, saveToCache = true) {
   $("connectionStatus").className = `badge ${isStale ? "bg-yellow-lt" : "bg-green-lt"}`;
 }
 
-// Lekéri az utolsó 60 mérést a szervertől, és az utolsóval frissíti a kártyákat. Az AI-chat adatcsomagja is ebből áll össze.
-// quiet = csendes mód: háttérfrissítésnél nem írunk üzenetet, csak ha új mérés érkezett.
+// Utolsó 60 mérés lekérése, az utolsóból frissülnek a kártyák (és a chat adatai).
+// quiet = háttérfrissítés, csak új mérésnél írunk üzenetet.
 async function loadLatestReadings({ quiet = false } = {}) {
   const button = $("refreshDataBtn");
   if (button) button.disabled = true;
@@ -622,8 +610,8 @@ async function loadLatestReadings({ quiet = false } = {}) {
   }
 }
 
-// Betölti a kiválasztott időszak adatait, majd újrarajzolja a grafikonokat. A szűrő az API-kérésbe kerül,
-// így a grafikon tényleg a kért adatokból készül. Elmenti a szűrés tényét és az időszak szövegét a PDF-hez is.
+// Kiválasztott időszak betöltése és a grafikonok újrarajzolása. A szűrő az API-kérésbe kerül.
+// Elmentjük, hogy van-e szűrés és mi az időszak szövege (a PDF-hez).
 async function loadChartHistory({ quiet = false } = {}) {
   const button = $("refreshChartsBtn");
   const status = $("chartStatus");
@@ -658,10 +646,9 @@ async function loadChartHistory({ quiet = false } = {}) {
 
     const feeds = Array.isArray(data.feeds) ? data.feeds : [];
     renderThingSpeakCharts(feeds);
-    // A PDF-jelentés számára tároljuk. Maguk a grafikonok az oldalról kerülnek a PDF-be.
-    // Az alapnézet az utolsó 60 mérés. Minden más beállítást szűrésnek tekintünk.
+    // A PDF-hez tároljuk. Alapnézet = utolsó 60 mérés, minden más szűrésnek számít.
     state.chartFiltered = chartCustomRangeActive || rangeSelect.value !== "results:60";
-    // Ez a szöveg kerül a PDF-be, ezért az időszak teljes alakban, évszámmal szerepel.
+    // A PDF-be a teljes alakú időszak (évvel) kerül.
     state.chartPeriodLabel = `Szűrt időszak: ${periodText} · ${new Intl.NumberFormat("hu-HU").format(feeds.length)} mérési pont`;
     state.lastChartFetchedAt = new Date();
     const latestMeasurement = feeds.at(-1)?.created_at;
@@ -684,14 +671,14 @@ async function loadChartHistory({ quiet = false } = {}) {
 
 // ---------- Időjárás ----------
 
-// Az időjárás-kártya állapotsorának szövege. Hiba esetén piros megjelenést kap.
+// Az időjárás-kártya állapotsora, hibánál piros.
 function setWeatherStatus(message, isError = false) {
   const status = $("weatherStatus");
   status.textContent = message;
   status.classList.toggle("weather-error", isError);
 }
 
-// Szám magyar formátumban az időjárás-kártyához. Ha az érték nem szám (a szolgáltatás nem küldött semmit), gondolatjelet ír NaN helyett.
+// Szám magyar formában az időjáráshoz, NaN helyett '—'.
 function weatherNumber(value, digits = 0) {
   const number = Number(value);
   return Number.isFinite(number)
@@ -699,11 +686,9 @@ function weatherNumber(value, digits = 0) {
     : "—";
 }
 
-// Lekéri az aktuális időjárást az Open-Meteo szolgáltatástól a megadott koordinátákra, és kiírja a kártyára.
-// A timezone=auto beállítás miatt a szolgáltatás a hely saját idejét adja vissza, nem a böngészőét.
+// Aktuális időjárás lekérése az Open-Meteo-tól. A timezone=auto miatt a hely saját idejét kapjuk.
 async function loadCurrentWeather(latitude, longitude, placeName) {
   setWeatherStatus("Időjárási adatok lekérése…");
-  // A koordináták alapján kért aktuális adatokat az időjárási szolgáltatás saját helyi idejével kapjuk.
   const params = new URLSearchParams({
     latitude: String(latitude),
     longitude: String(longitude),
@@ -734,8 +719,7 @@ async function loadCurrentWeather(latitude, longitude, placeName) {
   setWeatherStatus("Sikeresen betöltve.");
 }
 
-// A városkereső űrlap elküldése. Ha a felhasználó már kiválasztott egy javaslatot, annak koordinátáit használjuk,
-// így nincs második keresési kérés. Különben a beírt névre keres.
+// Városkereső űrlap elküldése. Ha már van kiválasztott javaslat, annak a koordinátáit használjuk, különben keresünk a beírt névre.
 async function searchWeatherByCity(event) {
   event.preventDefault();
   const query = $("weatherLocationInput").value.trim();
@@ -759,22 +743,21 @@ async function searchWeatherByCity(event) {
   }
 }
 
-// Az időjárás városkeresésének állapota: a javaslatlista, a kiválasztott elem és a gépelés utáni késleltetés.
-// Gépelés után röviden várunk a javaslatok lekérésével, így nem küldünk kérést minden billentyűleütésre.
+// Városkereső állapota: javaslatok, kijelölt elem, késleltetés (nem küldünk kérést minden billentyűre).
 let weatherSuggestionTimer;
 let weatherSuggestionRequest = 0;
 let weatherSelectedPlace = null;
 let weatherSelectedQuery = "";
 let weatherActiveSuggestion = -1;
 
-// Egy találatból szöveget készít (név, megye, ország). Az ismétlődéseket kivesszük (pl. Budapest, Budapest, Magyarország).
+// Találatból szöveg (név, megye, ország), az ismétlődéseket kivesszük.
 function formatWeatherPlace(place) {
   return [place.name, place.admin1, place.country]
     .filter((value, index, values) => value && values.indexOf(value) === index)
     .join(", ");
 }
 
-// Településkeresés az Open-Meteo szolgáltatásnál: legfeljebb 5 találat, magyarul. Ennyi elég a javaslatlistához.
+// Településkeresés az Open-Meteo-n: max. 5 találat, magyarul.
 async function findWeatherPlaces(query) {
   const params = new URLSearchParams({ name: query, count: "5", language: "hu", format: "json" });
   const response = await fetch("https://geocoding-api.open-meteo.com/v1/search?" + params.toString(), { cache: "no-store" });
@@ -783,7 +766,7 @@ async function findWeatherPlaces(query) {
   return data.results || [];
 }
 
-// Bezárja a javaslatlistát. A képernyőolvasó-attribútumokat (aria) is visszaállítja, hogy ne olvassák fel a régi listát.
+// Javaslatlista bezárása (az aria attribútumokkal együtt).
 function closeWeatherSuggestions() {
   const input = $("weatherLocationInput");
   const list = $("weatherLocationSuggestions");
@@ -794,7 +777,7 @@ function closeWeatherSuggestions() {
   weatherActiveSuggestion = -1;
 }
 
-// Egy javaslat kiválasztása: beírja a nevét a mezőbe, bezárja a listát, és azonnal elküldi az űrlapot, így egy kattintással betöltődik az időjárás.
+// Javaslat kiválasztása: beírjuk a mezőbe és rögtön elküldjük az űrlapot.
 function selectWeatherSuggestion(place) {
   const input = $("weatherLocationInput");
   input.value = formatWeatherPlace(place);
@@ -804,8 +787,7 @@ function selectWeatherSuggestion(place) {
   $("weatherForm").requestSubmit();
 }
 
-// Lekéri és megjeleníti a javaslatokat a beírt szövegre. A kérések másik sorrendben is befejeződhetnek, mint ahogy indultak,
-// ezért a requestId és a szöveg ellenőrzése eldobja a már elavult válaszokat.
+// Javaslatok lekérése. Az elavult válaszokat a requestId és a szöveg ellenőrzésével eldobjuk, mert a kérések más sorrendben is befejeződhetnek.
 async function loadWeatherSuggestions(query) {
   const requestId = ++weatherSuggestionRequest;
   try {
@@ -831,8 +813,8 @@ async function loadWeatherSuggestions(query) {
   }
 }
 
-// A nyilakkal léptet a javaslatok között. A kijelölés körbeér (maradékos osztással). Az aria-activedescendant attribútumot használjuk
-// a fókusz áthelyezése helyett, így a felhasználó közben tovább gépelhet.
+// Nyilakkal lépkedés a javaslatok között (körbeér).
+// Az aria-activedescendant miatt a fókusz a beviteli mezőben marad.
 function moveWeatherSuggestionSelection(direction) {
   const input = $("weatherLocationInput");
   const options = [...$("weatherLocationSuggestions").querySelectorAll('[role="option"]')];
@@ -847,20 +829,20 @@ function moveWeatherSuggestionSelection(direction) {
   input.setAttribute("aria-activedescendant", options[weatherActiveSuggestion].id);
 }
 
-// Gépeléskor hívódik meg. Várunk, amíg a felhasználó abbahagyja a gépelést (debounce), különben minden billentyű egy API-hívás lenne.
+// Gépeléskor hívódik. Várunk, amíg abbahagyja a gépelést (debounce), nem küldünk kérést minden betűre.
 function handleWeatherLocationInput(event) {
   const query = event.currentTarget.value.trim();
   weatherSelectedPlace = null;
   weatherSelectedQuery = "";
   clearTimeout(weatherSuggestionTimer);
-  // Eldobjuk a régebbi kérések eredményét, ha közben újabb keresés indult.
+  // Ha közben újabb keresés indult, a régi eredményt eldobjuk.
   weatherSuggestionRequest += 1;
   closeWeatherSuggestions();
   if (query.length < 2) return;
   weatherSuggestionTimer = setTimeout(() => loadWeatherSuggestions(query), 300);
 }
 
-// Billentyűkezelés a keresőmezőben: a fel/le nyíl lépked a listában, az Enter a kijelölt javaslatot választja.
+// Billentyűkezelés: fel/le nyíl léptet, Enter kiválasztja a javaslatot.
 function handleWeatherLocationKeydown(event) {
   if (event.key === "ArrowDown") {
     event.preventDefault();
@@ -879,7 +861,7 @@ function handleWeatherLocationKeydown(event) {
   }
 }
 
-// A koordinátákhoz településnevet keres (fordított geokódolás, Nominatim). Csak a helyzet gomb megnyomása után hívjuk, ez a szolgáltatás szabályzatában is így szerepel.
+// Település neve a koordinátákból (Nominatim). Csak a helyzet gomb megnyomása után hívjuk.
 async function findNearbyPlaceName(latitude, longitude) {
   const params = new URLSearchParams({
     format: "jsonv2",
@@ -896,8 +878,7 @@ async function findNearbyPlaceName(latitude, longitude) {
   return address.city || address.town || address.village || address.municipality || address.hamlet || address.suburb || address.county || data.name || null;
 }
 
-// A 'Saját helyzet' gomb: elkéri a böngészőtől a pontos helyet (a böngésző engedélyt kér), majd betölti az ottani időjárást.
-// A helyadatok lekérését csak a gomb megnyomása után indítjuk el.
+// 'Saját helyzetem' gomb: helyadat kérése a böngészőtől, majd az ottani időjárás betöltése.
 function useCurrentLocation() {
   const button = $("useMyLocationBtn");
   if (!navigator.geolocation) {
@@ -934,9 +915,8 @@ function useCurrentLocation() {
   }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
 }
 
-// Összeköti az időjárás-kártya elemeit a függvényekkel: a keresőmező, a billentyűzet és a helyzet gomb eseményeit.
 function setupWeather() {
-  // Összekapcsoljuk a keresőmező, a billentyűzet és a helymeghatározó gomb eseményeit.
+  // Az időjárás-kártya eseményeinek bekötése.
   $("weatherForm").addEventListener("submit", searchWeatherByCity);
   $("weatherLocationInput").addEventListener("input", handleWeatherLocationInput);
   $("weatherLocationInput").addEventListener("keydown", handleWeatherLocationKeydown);
@@ -946,8 +926,7 @@ function setupWeather() {
 
 // ---------- AI-chat ----------
 
-// Összeállítja azt az adatcsomagot (utolsó mérés, az adat kora, elavult-e), amit a felhasználó kérdésével együtt elküldünk az AI-nak.
-// Az oszlopnevek angolul vannak, mert a szerveroldali AI-utasítás (prompt) is ezeket a neveket használja.
+// Az AI-nak küldött adatcsomag (utolsó mérés, kora, elavult-e). Az oszlopnevek angolul vannak, mert a szerver promptja is ezeket használja.
 function sensorContext() {
   if (!state.readings) return { status: "Még nincs betöltött mérési adat." };
   const measuredAt = state.lastEntry?.created_at ? new Date(state.lastEntry.created_at) : null;
@@ -970,8 +949,7 @@ function sensorContext() {
   };
 }
 
-// A chat űrlap elküldése: kitesszük a kérdést a chatablakba, elküldjük a szervernek (/api/chat), majd megjelenítjük a választ.
-// Küldés közben a gomb le van tiltva, hogy véletlenül ne lehessen ugyanazt a kérdést kétszer elküldeni.
+// Chat űrlap elküldése: kérdés kiírása, küldés a /api/chat-nek, válasz megjelenítése. Küldés közben a gomb le van tiltva.
 async function submitChat(event) {
   event.preventDefault();
   const input = $("chatInput");
@@ -979,7 +957,7 @@ async function submitChat(event) {
   if (!message) return;
 
   addChatMessage("Te", message, "user");
-  // A most elküldött kérdést kihagyjuk az előzményből, azt a szerver külön kapja meg.
+  // A most elküldött kérdést kihagyjuk az előzményből, mert azt külön kapja a szerver.
   const conversation = [...$("chatMessages").querySelectorAll(".chat-message")]
     .filter((item) => item.classList.contains("user-message") || item.classList.contains("bot-message"))
     .map((item) => ({
@@ -1022,10 +1000,9 @@ async function submitChat(event) {
 
 // ---------- A felület indítása ----------
 
-// A világos/sötét téma beállítása. A téma a 'dark' osztály a <html> elemen, és a localStorage-ban is megmarad.
-// A theme-color meta jelzés a telefon böngészősávjának színét is átállítja. TODO: ugyanez a kód az add-device.js-ben is megvan, közös fájlba lehetne tenni.
+// Világos/sötét téma. A Tabler a <html data-bs-theme> attribútumot használja, a választást a localStorage őrzi.
+// TODO: ugyanez van az add-device.js-ben is, közös fájlba lehetne tenni.
 function setupTheme() {
-  // A Tabler a téma nevét a <html data-bs-theme> attribútumból olvassa; a választást a böngésző megjegyzi.
   const root = document.documentElement;
   const themeToggle = $("themeToggle");
   const updateThemeState = () => {
@@ -1037,13 +1014,13 @@ function setupTheme() {
     root.setAttribute("data-bs-theme", nextTheme);
     localStorage.setItem("greenhouse-theme", nextTheme);
     updateThemeState();
-    // A grafikonok színei a témától függnek, ezért újrarajzoljuk őket.
+    // A grafikonok színe a témától függ, ezért újrarajzoljuk őket.
     if (chartFeedsForResize) renderThingSpeakCharts(chartFeedsForResize);
   });
 }
 
 function setupNavigation() {
-  // A menü lenyitását a Tabler (Bootstrap) kezeli; linkre kattintva mobilon csak becsukjuk.
+  // A menü nyitását a Tabler (Bootstrap) intézi, linkre kattintva csak bezárjuk.
   const navLinks = $("navLinks");
   navLinks.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => {
     navLinks.classList.remove("show");
@@ -1052,7 +1029,7 @@ function setupNavigation() {
 }
 
 function setupDemoSwitches() {
-  // Ezek csak látványkapcsolók, nem küldenek parancsot az ESP32-nek.
+  // Csak demó kapcsolók, nem küldenek parancsot az ESP32-nek.
   ["fanDemoSwitch", "ledDemoSwitch", "roofDemoSwitch"].forEach((id) => {
     $(id).addEventListener("change", (event) => {
       event.currentTarget.dataset.previewChanged = "true";
@@ -1060,8 +1037,8 @@ function setupDemoSwitches() {
   });
 }
 
-// A grafikonok szűrőjének beállítása: visszaállítja az utoljára választott időszakot a helyi tárhelyből, és bekapcsolja a gyors lista, az egyéni időszak és a Frissítés gombot.
-// A gyors lista és az egyéni időszak kizárják egymást: ha az egyéni időszak aktív, a lista üres.
+// Grafikon-szűrő beállítása: visszaállítja a mentett időszakot és bekötjük a gombokat.
+// A gyors lista és az egyéni időszak kizárják egymást.
 function setupChartControls() {
   const select = $("chartRangeSelect");
   const filterPanel = $("chartFilterPanel");
@@ -1118,8 +1095,7 @@ function setupChartControls() {
   $("refreshChartsBtn").addEventListener("click", () => loadChartHistory());
 }
 
-// A főoldal elindítása bejelentkezés után: bekapcsolja az összes gombot és szerkesztőt, a PDF gombokat, visszatölti a chatet és a mentett mérést,
-// majd elindítja az adatok betöltését és az időzített frissítéseket (kártyák 30 s, grafikonok 5 perc).
+// Főoldal indítása bejelentkezés után: gombok, szerkesztők és PDF gombok bekötése, chat és mentett mérés visszatöltése, adatok betöltése, időzített frissítés.
 function initializeDashboard() {
   setupActivityLog();
   addActivityLog("A felügyeleti felület megnyílt.");
@@ -1131,8 +1107,8 @@ function initializeDashboard() {
   setupSummaryEditor();
   setupMetricEditor();
   setupChartEditor();
-  // A PDF-modul külön fájl. Ha hiányzik (például egy régi, gyorsítótárazott változat miatt), érthető üzenetet adunk.
-  // A grafikonok csak szűrés esetén kerülnek a PDF-be, különben a PDF csak az általános adatokat tartalmazza.
+  // A PDF-modul külön fájl, ha nem töltődött be (pl. régi gyorsítótár), üzenetet adunk.
+  // A grafikonok csak szűrésnél kerülnek a PDF-be.
   const reportOptions = () => (state.chartFiltered
     ? { charts: [...document.querySelectorAll("[data-field-chart] svg.apexcharts-svg")], periodLabel: state.chartPeriodLabel }
     : {});
@@ -1146,7 +1122,7 @@ function initializeDashboard() {
   };
   $("exportPdfBtn").addEventListener("click", async () => {
     try {
-      // A jelentés a betöltött adatokról készül, a bemutató kapcsolók nem írják felül az eszközállapotokat.
+      // A jelentés a betöltött adatokból készül.
       const report = getReportModule();
       const name = await report.download(state.lastEntry, reportOptions());
       addActivityLog(`A mérési jelentés PDF-ként letöltődött (${name}).`);
@@ -1178,12 +1154,12 @@ function initializeDashboard() {
     loadChartHistory({ quiet: true });
   });
   $("chatForm").addEventListener("submit", submitChat);
-  // Előbb visszaállítjuk a korábbi beszélgetést, így csak üres chatnél jelenik meg az üdvözlés.
+  // Előbb a régi beszélgetést töltjük vissza, így az üdvözlés csak üres chatnél jelenik meg.
   const hasChatHistory = restoreChatHistory();
   if (!hasChatHistory) {
     addChatMessage("Növényház okos kertésze", CHAT_GREETING_TEXT, "bot");
   }
-  // A mentett mérés rögtön látható, a következő sor friss adatot kér a ThingSpeaktől.
+  // A mentett mérés rögtön látszik, a következő sor friss adatot kér.
   restoreCachedReading();
   loadLatestReadings();
   loadChartHistory({ quiet: true });
@@ -1191,9 +1167,8 @@ function initializeDashboard() {
   state.chartRefreshTimer = window.setInterval(() => loadChartHistory({ quiet: true }), CHART_REFRESH_INTERVAL_MS);
 }
 
-// A felső adatkártya szerkesztője: a sorok sorrendje és láthatósága állítható (fogaskerék gomb). A mérések nem törlődnek, csak a megjelenítés változik.
+// Felső kártya szerkesztője (fogaskerék): sorrend és láthatóság. A mérések nem törlődnek.
 function setupSummaryEditor() {
-  // A felső ThingSpeak-kártya sorainak sorrendjét és láthatóságát kezeljük.
   const toggle = $("summarySettingsToggle");
   const panel = $("summarySettings");
   const list = $("summaryConfigList");
@@ -1217,7 +1192,7 @@ function setupSummaryEditor() {
   let draggedKey = null;
   let isOpen = false;
 
-  // A sorok elrejtése és megjelenítése a mentett sorrend szerint. A sorokat nem töröljük, csak elrejtjük, így később visszatehetők.
+  // Sorok elrejtése/megjelenítése a mentett sorrend szerint. Nem töröljük őket, csak elrejtjük.
   function updateRows() {
     const rows = new Map(
       [...rowsContainer.querySelectorAll("[data-summary-key]")]
@@ -1236,7 +1211,7 @@ function setupSummaryEditor() {
     });
   }
 
-  // Feltölti a legördülő listát azokkal a sorokkal, amik éppen nem láthatók, így azokat vissza lehet tenni.
+  // A legördülő listába azok a sorok kerülnek, amik most nem látszanak.
   function updateSelect() {
     select.replaceChildren();
     const placeholder = document.createElement("option");
@@ -1254,7 +1229,7 @@ function setupSummaryEditor() {
     addButton.disabled = select.disabled;
   }
 
-  // Minden változtatást azonnal elmentünk a helyi tárhelyre, és újrarajzoljuk a kártyát és a szerkesztőlistát is.
+  // Minden változtatást mentünk, és újrarajzoljuk a kártyát meg a listát.
   function saveOrder(nextOrder) {
     order = nextOrder;
     localStorage.setItem(SUMMARY_STORAGE_KEY, JSON.stringify(order));
@@ -1262,7 +1237,7 @@ function setupSummaryEditor() {
     renderEditorList();
   }
 
-  // Egy sort áttesz a másik sor helyére (húzással vagy a nyilakkal): kiveszi az eredeti helyéről, és beszúrja a célhelyre.
+  // Sor áthelyezése másik sor helyére (húzással vagy nyilakkal).
   function moveRow(fromKey, toKey) {
     if (!fromKey || !toKey || fromKey === toKey) return;
     const nextOrder = [...order];
@@ -1274,7 +1249,7 @@ function setupSummaryEditor() {
     saveOrder(nextOrder);
   }
 
-  // A szerkesztőlista kirajzolása DOM-elemekből (nem innerHTML-ből), így semmilyen szöveg nem válhat HTML-lé. Soronként fogantyú, fel/le nyíl és eltávolítás gomb van.
+  // Szerkesztőlista kirajzolása DOM-elemekkel (nem innerHTML-lel). Soronként fogantyú, fel/le nyíl és törlés gomb.
   function renderEditorList() {
     list.replaceChildren();
     order.forEach((key, index) => {
@@ -1353,7 +1328,6 @@ function setupSummaryEditor() {
     panel.hidden = !isOpen;
     $("metricSettings").hidden = !isOpen;
     $("chartEditHint").hidden = !isOpen;
-    document.body.classList.toggle("homepage-editing", isOpen);
     toggle.setAttribute("aria-expanded", String(isOpen));
     toggle.classList.toggle("is-active", isOpen);
   });
@@ -1367,9 +1341,8 @@ function setupSummaryEditor() {
   renderEditorList();
 }
 
-// A környezeti mérőkártyák szerkesztője: ugyanúgy rendezhetők, elrejthetők és visszatehetők, mint a felső kártya sorai. Az elrendezés helyi beállítás, másik böngészőben eltérhet.
+// Mérőkártyák szerkesztője, ugyanúgy működik, mint a felső kártyáé. A beállítás böngészőnként külön van.
 function setupMetricEditor() {
-  // A környezeti mérőkártyákat ugyanígy lehet rendezni, elrejteni és visszatenni.
   const grid = document.querySelector(".greenhouse-grid");
   const list = $("metricConfigList");
   const select = $("metricRowSelect");
@@ -1390,7 +1363,7 @@ function setupMetricEditor() {
 
   let draggedKey = null;
 
-  // Ugyanaz, mint az updateRows, csak a környezeti kártyákra: a láthatók a mentett sorrendben jelennek meg, a többi rejtve marad.
+  // Mint az updateRows, de a mérőkártyákra.
   function applyOrder() {
     const cards = new Map(
       [...grid.querySelectorAll("[data-metric-card]")]
@@ -1409,7 +1382,7 @@ function setupMetricEditor() {
     });
   }
 
-  // Feltölti a legördülő listát az éppen nem látható kártyákkal.
+  // A legördülő listába a rejtett kártyák kerülnek.
   function updateSelect() {
     select.replaceChildren();
     const placeholder = document.createElement("option");
@@ -1426,7 +1399,7 @@ function setupMetricEditor() {
     addButton.disabled = select.disabled;
   }
 
-  // A kártyák sorrendjének mentése és a nézetek újrarajzolása.
+  // Sorrend mentése és a nézetek újrarajzolása.
   function saveOrder(nextOrder) {
     order = nextOrder;
     localStorage.setItem(METRIC_STORAGE_KEY, JSON.stringify(order));
@@ -1434,7 +1407,7 @@ function setupMetricEditor() {
     renderList();
   }
 
-  // Egy kártyát áttesz a másik helyére (ugyanaz a logika, mint a moveRow).
+  // Kártya áthelyezése (mint a moveRow).
   function moveCard(fromKey, toKey) {
     if (!fromKey || !toKey || fromKey === toKey) return;
     const next = [...order];
@@ -1446,7 +1419,7 @@ function setupMetricEditor() {
     saveOrder(next);
   }
 
-  // A kártyák szerkesztőlistájának kirajzolása DOM-elemekből, ugyanúgy, mint a renderEditorList.
+  // Szerkesztőlista kirajzolása, mint a renderEditorList.
   function renderList() {
     list.replaceChildren();
     order.forEach((key, index) => {
@@ -1523,10 +1496,9 @@ function setupMetricEditor() {
   renderList();
 }
 
-// A grafikonok szerkesztője: minden grafikonhoz tartozik egy mező (1-8). A csempe törlése csak az elrendezést módosítja, az adatot nem.
-// Az üres helyen egy plusz gombbal új mező választható.
+// Grafikon szerkesztő: minden grafikonhoz egy mező (1-8) tartozik. A csempe törlése csak az elrendezést érinti.
+// Üres helyen a plusz gombbal új mező választható.
 function setupChartEditor() {
-  // A kiválasztott grafikonmezőket elmentjük, az üres helyeken pedig új mező adható hozzá.
   const grid = $("chartGrid");
   if (!grid) return;
 
@@ -1554,8 +1526,8 @@ function setupChartEditor() {
     8: "Növényház teteje"
   };
 
-  // Elmenti a kiválasztott grafikonmezőket. A Set eltávolítja az ismétlődéseket, a slice legfeljebb MAX_CHART_SLOTS elemet hagy.
-  // A grafikonokat a már betöltött adatokból rajzolja újra, így nincs új API-hívás.
+  // Grafikonmezők mentése. A Set kiszedi az ismétlődést, a slice legfeljebb MAX_CHART_SLOTS elemet hagy.
+  // A már betöltött adatból rajzolunk újra, nincs új API-hívás.
   function saveFields(nextFields) {
     fields = [...new Set(nextFields)].slice(0, MAX_CHART_SLOTS);
     localStorage.setItem(CHART_STORAGE_KEY, JSON.stringify(fields));
@@ -1563,7 +1535,7 @@ function setupChartEditor() {
     if (chartFeedsForResize) renderThingSpeakCharts(chartFeedsForResize);
   }
 
-  // Minden kiválasztott mezőhöz egy grafikon-csempét rajzol (eltávolítás gombbal), minden szabad helyre pedig egy üres csempét plusz gombbal.
+  // Minden mezőhöz grafikon-csempe, a szabad helyekre üres csempe plusz gombbal.
   function renderSlots() {
     grid.replaceChildren();
     fields.forEach((field) => {
@@ -1637,14 +1609,13 @@ function setupChartEditor() {
   renderSlots();
 }
 
-// Megjeleníti a főoldalt a bejelentkezés után, elindítja a működését, és ha a címben van horgony (#...), odagörget.
-// Görgetés előtt az oldalnak láthatónak kell lennie, hogy a végleges pozíciókat meg lehessen mérni.
+// Főoldal megjelenítése belépés után. Ha van horgony (#...) az URL-ben, odagörgetünk.
 function showDashboard() {
   $("loginScreen").hidden = true;
   $("appShell").hidden = false;
   initializeDashboard();
 
-  // A főoldal a bejelentkezés után válik láthatóvá, ezért a célpontra ezután görgetünk.
+  // Belépés után látszik az oldal, ezért csak utána görgetünk.
   const targetId = window.location.hash.slice(1);
   if (!targetId) return;
 
@@ -1658,13 +1629,12 @@ function showDashboard() {
   }));
 }
 
-// A bejelentkezési űrlap hibaüzenetének beállítása.
+// Bejelentkezési hibaüzenet beállítása.
 function setLoginMessage(message) {
   $("loginMessage").textContent = message;
 }
 
-// Megkérdezi a szervert, hogy a felhasználó be van-e jelentkezve. A munkamenet-süti HttpOnly, a JavaScript nem látja,
-// ezért kell a szerverhez fordulni. Ha igen, megjelenik a főoldal.
+// Megkérdezzük a szervert, be van-e jelentkezve a felhasználó (a süti HttpOnly, JS-ből nem látszik). Ha igen, megjelenik a főoldal.
 async function checkLogin() {
   const response = await fetch("/api/auth", { cache: "no-store" });
   const result = await response.json().catch(() => ({}));
@@ -1672,7 +1642,7 @@ async function checkLogin() {
   if (result.authenticated) showDashboard();
 }
 
-// A bejelentkezés felülete: a jelszó mutatása/elrejtése gomb, a belépés és a kilépés. A jelszót csak a szervernek küldjük el, a böngészőben nem tároljuk.
+// Bejelentkezés felülete: jelszó mutatása, belépés, kilépés. A jelszót csak a szervernek küldjük.
 // TODO: a script.js már nagyon hosszú, a bejelentkezés külön fájlba kerülhetne.
 function setupAuthentication() {
   const loginForm = $("loginForm");
@@ -1732,5 +1702,5 @@ function setupAuthentication() {
   checkLogin().catch((error) => setLoginMessage(error.message));
 }
 
-// Az oldal betöltődése után indul a program: először a bejelentkezést ellenőrizzük.
+// Az oldal betöltése után a bejelentkezés ellenőrzésével indulunk.
 document.addEventListener("DOMContentLoaded", setupAuthentication);
