@@ -1,12 +1,10 @@
-// Eszközkezelő oldal: itt lehet eszközöket felvenni, szerkeszteni és törölni.
-// Az eszközlistát a böngésző helyi tárhelyében (localStorage) tároljuk, és ebből rajzoljuk ki a kártyákat.
-// Egy eszköz felvétele csak nyilvántartás: nem párosít hardvert, és az ESP32 programját sem módosítja.
-// Az oldal elemei: az űrlap, az eszközlista és a téma kapcsoló (a HTML-ben az id alapján keressük meg őket).
+// Eszközkezelő oldal: eszközök felvétele, szerkesztése és törlése.
+// A lista a localStorage-ban van, ebből rajzoljuk ki a kártyákat. Ez csak nyilvántartás, a hardvert és az ESP32 programját nem érinti.
 const deviceForm = document.getElementById("deviceForm");
 const deviceList = document.getElementById("deviceList");
 const themeToggle = document.getElementById("themeToggle");
 
-// Az űrlap mezői. Az editIndex rejtett mező: ha üres, új eszközt veszünk fel, ha szám, akkor azt az eszközt szerkesztjük.
+// Az űrlap mezői. Az editIndex rejtett mező: üres = új eszköz, szám = ennek az eszköznek a szerkesztése.
 const editIndexInput = document.getElementById("editIndex");
 const deviceNameInput = document.getElementById("deviceName");
 const deviceTypeInput = document.getElementById("deviceType");
@@ -16,7 +14,7 @@ const saveDeviceBtn = document.getElementById("saveDeviceBtn");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
 const deviceMessage = document.getElementById("deviceMessage");
 
-// Az eszköztípusok angol kulcsai és a felületen megjelenő magyar nevei.
+// Eszköztípusok: angol kulcs -> magyar név.
 const DEVICE_TYPE_LABELS = {
   Temperature: "Hőmérséklet",
   Humidity: "Páratartalom",
@@ -32,9 +30,9 @@ const DEVICE_TYPE_LABELS = {
   Other: "Egyéb"
 };
 
-// Ezzel a kulccsal jegyezzük meg, hogy az alaplistát már betöltöttük (ne kerüljön vissza egy törölt kártya).
+// Ezzel jegyezzük meg, hogy az alaplistát már betöltöttük (így a törölt kártya nem jön vissza).
 const DEVICE_INITIALIZED_KEY = "smartHomeDevicesInitialized";
-// A növényház jelenlegi eszközei: minden eszközhöz tartozik egy ThingSpeak-mező (field1...field8).
+// A növényház jelenlegi eszközei, mindegyikhez egy ThingSpeak-mező (field1...field8) tartozik.
 const CURRENT_GREENHOUSE_DEVICES = [
   { id: "firmware-field1", name: "BME280 · Hőmérséklet", type: "Temperature", field: "1" },
   { id: "firmware-field2", name: "BME280 · Páratartalom", type: "Humidity", field: "2" },
@@ -54,11 +52,9 @@ const CURRENT_GREENHOUSE_DEVICES = [
 
 // ---------- Mentett eszközök ----------
 
-// Betölti az eszközlistát a böngésző helyi tárhelyéből. Az első megnyitáskor a növényház ismert eszközeit is hozzáadja,
-// utána már csak a felhasználó saját listáját használja. Az alaplista csak egyszer kerül be, így a törölt kártya nem jön vissza.
-// Ha a mentett adat sérült, üres listával folytatjuk, hogy az oldal ne álljon le.
+// Eszközlista betöltése a localStorage-ból. Első megnyitáskor hozzáadjuk a növényház ismert eszközeit is.
+// Sérült adatnál üres listával folytatjuk.
 function loadDevices() {
-  // Első megnyitáskor betesszük az ESP32 ismert eszközeit, utána a felhasználó saját listáját töltjük be.
   try {
     const savedDevices = JSON.parse(localStorage.getItem("smartHomeDevices") || "[]");
     const devices = Array.isArray(savedDevices)
@@ -81,17 +77,15 @@ function loadDevices() {
   }
 }
 
-// Az eszközök listája a memóriában. Induláskor a helyi tárhelyből töltjük be.
+// Az eszközök listája (memóriában), induláskor a localStorage-ból töltjük.
 let devices = loadDevices();
 
-// Elmenti az eszközlistát a böngésző helyi tárhelyébe. Ez böngészőnként külön tárolódik, nem szinkronizálódik másik
-// telefonra vagy gépre, és nem a ThingSpeak csatornába kerül.
+// Lista mentése a localStorage-ba. Böngészőnként külön van, a ThingSpeak csatornába nem kerül.
 function saveDevices() {
-  // A lista böngészőnként tárolódik, nem a ThingSpeak csatornában.
   localStorage.setItem("smartHomeDevices", JSON.stringify(devices));
 }
 
-// Egy ISO formátumú dátumot (2026-11-08T19:33:00Z) olvasható, budapesti idejű szöveggé alakít.
+// ISO dátum (2026-11-08T19:33:00Z) -> olvasható, budapesti idejű szöveg.
 function formatDate(dateString) {
   if (!dateString) {
     return "Nincs adat";
@@ -103,22 +97,20 @@ function formatDate(dateString) {
     : date.toLocaleString("hu-HU", { timeZone: "Europe/Budapest" });
 }
 
-// Beír egy sort az eseménynaplóba, amit a főoldal is megjelenít. A főoldal naplózó függvénye (script.js) ide másolva van,
-// mert ez az oldal nem tölti be a script.js fájlt. TODO: a localStorage segédfüggvényeket egy közös fájlba lehetne tenni.
+// Sor az eseménynaplóba, amit a főoldal is mutat. A script.js naplózó függvénye ide van másolva, mert ez az oldal nem tölti be a script.js-t.
+// TODO: a localStorage függvényeket közös fájlba lehetne tenni.
 function logDeviceActivity(message) {
-  // Ugyanabba a helyi eseménynaplóba írunk, amit a főoldal is megjelenít.
   try {
     const savedEntries = JSON.parse(localStorage.getItem("greenhouse-activity-log") || "[]");
     const entries = Array.isArray(savedEntries) ? savedEntries : [];
     entries.unshift({ at: new Date().toISOString(), message, level: "success" });
     localStorage.setItem("greenhouse-activity-log", JSON.stringify(entries.slice(0, 30)));
   } catch {
-    // Az eszköz mentése akkor is sikeres marad, ha a böngésző nem engedi a naplózást.
+    // Az eszköz mentése akkor is sikeres, ha a naplózás nem megy.
   }
 }
 
-// Egy 'Címke: érték' sort ad az eszközkártyához. Az értéket textContent-tel (sima szövegként) tesszük ki,
-// így amit a felhasználó beírt, soha nem futhat le HTML-ként.
+// 'Címke: érték' sor az eszközkártyára. textContent-et használunk, így a beírt szöveg nem futhat le HTML-ként.
 function addDetail(container, label, value) {
   const line = document.createElement("p");
   const name = document.createElement("strong");
@@ -130,10 +122,9 @@ function addDetail(container, label, value) {
 
 // ---------- Az eszközlista megjelenítése ----------
 
-// Újrarajzolja az eszközkártyákat a tárolt listából. Mentés vagy törlés után mindig ezt hívjuk meg.
-// A kártyákat DOM-elemekből építjük fel (nem HTML-szövegből), így a felhasználó szövege sosem futhat le kódként.
+// Eszközkártyák újrarajzolása a listából (mentés vagy törlés után).
+// DOM-elemekből építjük, nem HTML-szövegből.
 function renderDevices() {
-  // A listaelemeket DOM-elemekből építjük fel, így a felhasználó szövege nem futhat le HTML-kódként.
   deviceList.replaceChildren();
   const count = document.getElementById("deviceCount");
   if (count) count.textContent = `${devices.length} eszköz`;
@@ -159,7 +150,6 @@ function renderDevices() {
     actions.className = "card-footer d-flex gap-2 device-actions";
     title.textContent = device.name || "Névtelen eszköz";
 
-    // Az elmentett adatokat egyszerű szövegként tesszük az oldalra.
     addDetail(details, "Típus", DEVICE_TYPE_LABELS[device.type] || device.type || "Nincs megadva");
     addDetail(details, "ThingSpeak-mező", device.field || device.thingSpeakField || "Nincs hozzárendelve");
     addDetail(details, "Elhelyezés", device.location || "Nincs megadva");
@@ -187,9 +177,8 @@ function renderDevices() {
   });
 }
 
-// Kiüríti az űrlapot. Az editIndex mező törlésével visszaáll 'új eszköz felvétele' módba a szerkesztés módból.
+// Űrlap kiürítése. Az editIndex törlésével visszaáll 'új eszköz' módba.
 function resetForm() {
-  // Mentés vagy megszakítás után visszaállítjuk az űrlapot új eszköz felvételére.
   deviceForm.reset();
   editIndexInput.value = "";
   saveDeviceBtn.textContent = "Eszköz mentése";
@@ -198,9 +187,8 @@ function resetForm() {
 
 // ---------- Eszköz felvétele, szerkesztése, törlése ----------
 
-// Szerkesztés indítása: a kiválasztott eszköz adatait visszatölti az űrlapba, így ugyanaz az űrlap használható új felvételre és módosításra is.
+// Szerkesztés indítása: az eszköz adatai az űrlapba kerülnek, így ugyanaz az űrlap jó felvételre és módosításra is.
 function editDevice(index) {
-  // A kiválasztott eszköz adatait betöltjük az űrlap mezőibe.
   const device = devices[index];
   if (!device) return;
 
@@ -214,9 +202,8 @@ function editDevice(index) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-// Egy eszköz törlése. Visszavonás nincs, ezért előbb megerősítést kérünk egy párbeszédablakban.
+// Eszköz törlése. Visszavonás nincs, ezért előbb megerősítést kérünk.
 async function deleteDevice(index) {
-  // Törlés előtt megerősítést kérünk, mert az eszköz kikerül a mentett listából.
   if (!devices[index]) return;
 
   const confirmed = await window.AppDialog.confirm("Biztosan törlöd ezt az eszközt?", {
@@ -232,7 +219,7 @@ async function deleteDevice(index) {
   logDeviceActivity("Egy eszköz törölve lett.");
 }
 
-// Az űrlap elküldése (mentés gomb): ellenőrzi a kötelező mezőket, majd új eszközt vesz fel vagy a meglévőt módosítja.
+// Űrlap elküldése: kötelező mezők ellenőrzése, majd új eszköz felvétele vagy a meglévő módosítása.
 deviceForm.addEventListener("submit", (event) => {
   event.preventDefault();
 
@@ -263,7 +250,7 @@ deviceForm.addEventListener("submit", (event) => {
     ...(existingDevice?.source ? { source: existingDevice.source } : {})
   };
 
-  // Szerkesztéskor a meglévő rekord helyére írunk, új eszköznél pedig a lista végére tesszük.
+  // Szerkesztéskor a régi rekord helyére írunk, új eszköznél a lista végére.
   if (isNewDevice) {
     devices.push(deviceData);
   } else {
@@ -277,15 +264,14 @@ deviceForm.addEventListener("submit", (event) => {
   logDeviceActivity(isNewDevice ? `Új eszköz felvéve: ${name}.` : `Eszköz módosítva: ${name}.`);
 });
 
-// A Mégse gomb kiüríti az űrlapot, és visszaáll új eszköz felvételére.
+// A Mégse gomb kiüríti az űrlapot.
 cancelEditBtn.addEventListener("click", resetForm);
 
 // ---------- Téma és az oldal indítása ----------
 
-// A világos/sötét téma beállítása. A téma a 'dark' osztály a <html> elemen, és a localStorage-ban is megmarad.
-// Ugyanaz a kód van a script.js-ben, hogy a két oldal témája mindig egyezzen. TODO: közös fájlba lehetne tenni.
+// Világos/sötét téma. Ugyanaz a kód, mint a script.js-ben, hogy a két oldal témája egyezzen (<html data-bs-theme>).
+// TODO: közös fájlba lehetne tenni.
 function setupTheme() {
-  // A főoldallal közös beállítást használjuk (<html data-bs-theme>), így az oldalváltás nem vált témát.
   const root = document.documentElement;
   themeToggle.setAttribute("aria-pressed", String(root.getAttribute("data-bs-theme") === "dark"));
 
@@ -298,7 +284,7 @@ function setupTheme() {
 }
 
 function setupNavigation() {
-  // A menü lenyitását a Tabler (Bootstrap) kezeli; linkre kattintva mobilon csak becsukjuk.
+  // A menü nyitását a Tabler (Bootstrap) intézi, linkre kattintva csak bezárjuk.
   const navLinks = document.getElementById("navLinks");
   navLinks.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => {
     navLinks.classList.remove("show");
@@ -320,11 +306,10 @@ function setupLogout() {
   });
 }
 
-// Az oldal indítása. Az eszközlista csak helyi adat, de az oldalhoz így is bejelentkezés kell,
-// ezért előbb megkérdezzük a szervert, hogy a felhasználó be van-e jelentkezve, és csak utána jelenítünk meg bármit.
+// Oldal indítása. Az eszközlista helyi adat, de az oldalhoz bejelentkezés kell, ezért előbb megkérdezzük a szervert.
 async function initializeDevicePage() {
   try {
-    // Az oldalt csak azután mutatjuk meg, hogy a szerver megerősítette a bejelentkezést.
+    // Csak a bejelentkezés megerősítése után mutatjuk az oldalt.
     const response = await fetch("/api/auth", { cache: "no-store" });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.authenticated) {
@@ -342,5 +327,5 @@ async function initializeDevicePage() {
   }
 }
 
-// Az oldal indítása.
+// Indítás.
 initializeDevicePage();

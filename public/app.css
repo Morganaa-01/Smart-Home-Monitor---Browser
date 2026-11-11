@@ -1,12 +1,9 @@
 /*
-  Projekt-specifikus kiegészítések a Tabler stíluslap fölé.
-  Csak azt tartalmazza, amit a Tabler nem ad kész: rácsok, a dinamikusan
-  kirajzolt elemek (szerkesztőlista, grafikon-csempe, chat, napló, javaslatlista).
-  Színekhez és méretekhez a Tabler (Bootstrap) CSS-változóit használja,
-  így a világos és sötét téma automatikusan működik.
+  Saját kiegészítések a Tabler stíluslaphoz: rácsok, szerkesztőlista, chat, napló, grafikon-csempék.
+  A színekhez a Tabler CSS-változóit (--tblr-...) használjuk, így a sötét téma is működik.
 */
 
-/* ===== Színséma: a Tabler zöldje az elsődleges szín (a növényházhoz illik) ===== */
+/* ===== Színséma: zöld az elsődleges szín ===== */
 :root,
 [data-bs-theme="light"],
 [data-bs-theme="dark"] {
@@ -43,7 +40,7 @@
   color: var(--tblr-secondary);
 }
 
-/* A sticky navigáció alá ne csússzon a horgonyra ugrott szekció. */
+/* A rögzített menü ne takarja el a szekció tetejét horgonyra ugrásnál. */
 [id] {
   scroll-margin-top: 5rem;
 }
@@ -202,7 +199,7 @@
   display: none;
 }
 
-/* A szűrőgomb jelzi, ha egyéni időszak van érvényben. */
+/* A szűrőgomb színe jelzi, ha egyéni időszak van beállítva. */
 .chart-filter-toggle.has-custom-range,
 .chart-filter-toggle.is-active {
   border-color: var(--tblr-primary);
@@ -247,7 +244,7 @@
   margin-bottom: 0.5rem;
 }
 
-/* ===== Párbeszédablak (app-dialog.js): natív <dialog> Tabler színekkel ===== */
+/* ===== Párbeszédablak (app-dialog.js) ===== */
 .app-dialog {
   width: min(28rem, calc(100vw - 2rem));
   height: fit-content;

@@ -1,6 +1,6 @@
 // A szenzormezők leírása: melyik ThingSpeak-mező mit jelent, milyen egységben.
-// A mezők sorszámának egyeznie kell azzal, amit a mikrovezérlő küld. Ha a firmware-ben megváltozik, itt is át kell írni.
-// A fényküszöb számítási szabály (600 lux), nem valamelyik növényfajta célértéke.
+// A sorszámnak egyeznie kell azzal, amit az ESP32 küld, ha a firmware-ben változik, itt is át kell írni.
+// A fényküszöb (600 lux) számítási szabály, nem valamelyik növényfajta célértéke.
 export const GREENHOUSE_CONFIG = Object.freeze({
   controller: "ESP32",
   automationLocation: "local_device",
